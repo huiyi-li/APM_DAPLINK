@@ -282,12 +282,14 @@ void dap_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 void usbd_cdc_acm_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void) busid;
-    chry_ringbuffer_write(&g_usbrx, usb_tmpbuffer, nbytes);
-    if (chry_ringbuffer_get_free(&g_usbrx) >= DAP_PACKET_SIZE) {
-        usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
-    } else {
-        usbrx_idle_flag = 1;
-    }
+    usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+    printf("%s",usb_tmpbuffer);
+//    chry_ringbuffer_write(&g_usbrx, usb_tmpbuffer, nbytes);
+//    if (chry_ringbuffer_get_free(&g_usbrx) >= DAP_PACKET_SIZE) {
+//        usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+//    } else {
+//        usbrx_idle_flag = 1;
+//    }
 }
 
 void usbd_cdc_acm_bulk_in(uint8_t busid, uint8_t ep, uint32_t nbytes)
@@ -434,7 +436,7 @@ void usbd_cdc_acm_get_line_coding(uint8_t busid, uint8_t intf, struct cdc_line_c
     (void) busid;
     memcpy(line_coding, (uint8_t *) &g_cdc_lincoding, sizeof(struct cdc_line_coding));
 }
-
+static uint8_t tx_dma_buffer[64] __attribute__((aligned(32), section(".noncacheable")));
 void chry_dap_usb2uart_handle(void)
 {
     uint32_t size;
@@ -462,30 +464,29 @@ void chry_dap_usb2uart_handle(void)
     */
 
     /* uartrx to usb tx */
-//    if (usbtx_idle_flag) {
-//        if (chry_ringbuffer_get_used(&g_uartrx)) {
-//            usbtx_idle_flag = 0;
+    if (usbtx_idle_flag) {
+        if (chry_ringbuffer_get_used(&g_uartrx)) {
+            usbtx_idle_flag = 0;
             /* start first transfer */
             buffer = chry_ringbuffer_linear_read_setup(&g_uartrx, &size);
-    if(buffer){
             usbd_ep_start_write(0, CDC_IN_EP, buffer, size);
-        chry_ringbuffer_linear_read_done(&g_uartrx, size);
+        }
     }
-//        }
-//    }
 
     /* usbrx to uart tx */
-//    if (uarttx_idle_flag) {
-//        if (chry_ringbuffer_get_used(&g_usbrx)) {
-//            uarttx_idle_flag = 0;
+    if (uarttx_idle_flag) {
+        if (chry_ringbuffer_get_used(&g_usbrx)) {
+            uarttx_idle_flag = 0;
             /* start first transfer */
             buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
-    if(buffer){
             chry_dap_usb2uart_uart_send_bydma(buffer, size);
-        chry_ringbuffer_linear_read_done(&g_usbrx, size);
-    }
-//        }
-//    } 
+        }
+    } 
+    
+//    if (chry_ringbuffer_get_used(&g_usbrx)) {
+//        buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
+//        chry_dap_usb2uart_uart_send_bydma(buffer, size);
+//    }
 
     /* check whether usb rx ringbuffer have space to store */
     if (usbrx_idle_flag) {
@@ -494,6 +495,8 @@ void chry_dap_usb2uart_handle(void)
             usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
         }
     }
+//    usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+//    printf("%d",usb_tmpbuffer[0]);
 }
 
 /* implment by user */

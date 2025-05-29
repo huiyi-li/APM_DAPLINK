@@ -125,11 +125,15 @@ void InitThread(ULONG thread_input)
 {
 
     
-    chry_dap_init(0,USB_OTG_FS_BASE);
-    
+//    chry_dap_init(0,USB_OTG_FS_BASE);
+//    chry_dap_init(0,USB_OTG_HS_BASE);
+//    void cdc_acm_init(uint8_t busid, uintptr_t reg_base);
+//    cdc_acm_init(0,USB_OTG_FS_BASE);
+    cdc_acm_init(0,USB_OTG_HS_BASE);
     while(1){
-    chry_dap_handle();
-    chry_dap_usb2uart_handle();
+        cdc_acm_data_send_with_dtr_test();
+//    chry_dap_handle();
+//    chry_dap_usb2uart_handle();
 
     }
 }
@@ -176,12 +180,15 @@ const char * const g_hello = "Hello, string is Initialized!\r\n";
  */
 int main(void)
 {
-    FPU_Init();
+//    FPU_Init();
     bsp_sysclk_init();
     GpioLedInit();
     bspInitUart(115200);
     bsp_uart1_init(115200);
     UsartWirte(DEBUG_COM, (uint8_t*)g_hello, strlen(g_hello));
+    
+    
+    
 //    bsp_uart1_send((uint8_t*)g_hello, strlen(g_hello));
     // int* ptr = malloc(100);
     // if (ptr == NULL) {

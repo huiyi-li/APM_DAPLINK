@@ -28,6 +28,10 @@
 #define CONFIG_USB_ALIGN_SIZE 4
 #endif
 
+#define CONFIG_USB_DWC2_DMA_ENABLE
+#define CONFIG_USB_HS
+//#define CONFIG_USB_FS
+
 // #define CONFIG_USB_DCACHE_ENABLE
 
 /* attribute data into no cache ram */
@@ -241,11 +245,17 @@
 /* ================ USB Device Port Configuration ================*/
 
 #ifndef CONFIG_USBDEV_MAX_BUS
-#define CONFIG_USBDEV_MAX_BUS 2 // for now, bus num must be 1 except hpm ip
+#define CONFIG_USBDEV_MAX_BUS 1 // for now, bus num must be 1 except hpm ip
 #endif
 
+#ifdef CONFIG_USB_FS
 #ifndef CONFIG_USBDEV_EP_NUM
 #define CONFIG_USBDEV_EP_NUM 4
+#endif
+#else
+#ifndef CONFIG_USBDEV_EP_NUM
+#define CONFIG_USBDEV_EP_NUM 6
+#endif
 #endif
 
 // #define CONFIG_USBDEV_SOF_ENABLE
@@ -260,6 +270,8 @@
 /* (5 * number of control endpoints + 8) + ((largest USB packet used / 4) + 1 for
  * status information) + (2 * number of OUT endpoints) + 1 for Global NAK
  */
+ 
+ #ifdef CONFIG_USB_FS
  #define CONFIG_USB_DWC2_RXALL_FIFO_SIZE (512 / 4)
 /* IN Endpoints Max packet Size / 4 */
  #define CONFIG_USB_DWC2_TX0_FIFO_SIZE (64 / 4)
@@ -271,6 +283,19 @@
  #define CONFIG_USB_DWC2_TX6_FIFO_SIZE (0 / 4)
  #define CONFIG_USB_DWC2_TX7_FIFO_SIZE (0 / 4)
  #define CONFIG_USB_DWC2_TX8_FIFO_SIZE (0 / 4)
+ #else
+ #define CONFIG_USB_DWC2_RXALL_FIFO_SIZE (512 / 4)
+/* IN Endpoints Max packet Size / 4 */
+ #define CONFIG_USB_DWC2_TX0_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX1_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX2_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX3_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX4_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX5_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX6_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX7_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_TX8_FIFO_SIZE (512 / 4)
+ #endif
 
 // #define CONFIG_USB_DWC2_DMA_ENABLE
 

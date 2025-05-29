@@ -48,7 +48,7 @@
 #define VECT_TAB_OFFSET  0x00
 
 /* PLL_VCO = (HSE_VALUE or HSI_VALUE / PLL_B) * PLL_A */
-#define PLL_B      8
+#define PLL_B      24
 
 /* USB OTG FS, SDIO and RNG Clock =  PLL_VCO / PLL_D */
 #define PLL_D      7

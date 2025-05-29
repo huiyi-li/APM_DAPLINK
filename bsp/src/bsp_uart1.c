@@ -76,8 +76,10 @@ void bsp_uart1_send_byte(uint8_t data)
 
 void USART2_IRQHandler(void)
 {
-    if(USART_ReadStatusFlag(USART2, USART_FLAG_RXBNE) == SET)
+    uint8_t data;
+    if(USART2->STS & USART_FLAG_RXBNE)
     {
-        chry_ringbuffer_write_byte(&g_uartrx,(uint8_t)USART_RxData(USART2));
+        data = USART2->DATA_B.DATA;
+        //chry_ringbuffer_write_byte(&g_uartrx,data);
     }
 }

@@ -8,8 +8,8 @@
 
 /*!< endpoint address */
 #define CDC_IN_EP  0x81
-#define CDC_OUT_EP 0x02
-#define CDC_INT_EP 0x83
+#define CDC_OUT_EP 0x01
+#define CDC_INT_EP 0x82
 
 #define USBD_VID           0xFFFF
 #define USBD_PID           0xFFFF
@@ -179,6 +179,7 @@ static void usbd_event_handler(uint8_t busid, uint8_t event)
         case USBD_EVENT_RESET:
             break;
         case USBD_EVENT_CONNECTED:
+            usbd_ep_start_read(busid, CDC_OUT_EP, read_buffer, 2048);
             break;
         case USBD_EVENT_DISCONNECTED:
             break;
@@ -208,8 +209,13 @@ void usbd_cdc_acm_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
     //     printf("%02x ", read_buffer[i]);
     // }
     // printf("\r\n");
-    /* setup next out ep read transfer */
-    usbd_ep_start_read(busid, CDC_OUT_EP, read_buffer, 2048);
+    if (nbytes > 0) {
+        /* Echo back to host */
+        usbd_ep_start_write(busid, CDC_IN_EP, read_buffer, nbytes);
+    }
+
+    /* Always prepare for next OUT transfer */
+    usbd_ep_start_read(busid, CDC_OUT_EP, read_buffer, sizeof(read_buffer));
 }
 
 void usbd_cdc_acm_bulk_in(uint8_t busid, uint8_t ep, uint32_t nbytes)

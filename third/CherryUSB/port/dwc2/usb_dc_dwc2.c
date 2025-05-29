@@ -162,11 +162,12 @@ static inline int dwc2_core_init(uint8_t busid)
     int ret;
 #if defined(CONFIG_USB_HS)
     /* Init The ULPI Interface */
-    USB_OTG_GLB->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
+//    USB_OTG_GLB->GUSBCFG &= ~(USB_OTG_GUSBCFG_TSDPS | USB_OTG_GUSBCFG_ULPIFSLS | USB_OTG_GUSBCFG_PHYSEL);
 
     /* Select vbus source */
-    USB_OTG_GLB->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
+//    USB_OTG_GLB->GUSBCFG &= ~(USB_OTG_GUSBCFG_ULPIEVBUSD | USB_OTG_GUSBCFG_ULPIEVBUSI);
 
+    USB_OTG_GLB->GUSBCFG &= (~USB_OTG_GUSBCFG_PHYSEL);
     /* Reset after a PHY select */
     ret = dwc2_reset(busid);
 #else
@@ -746,7 +747,7 @@ int usbd_ep_open(uint8_t busid, const struct usb_endpoint_descriptor *ep)
         } else {
             fifo_size = (USB_OTG_GLB->DIEPTXF[ep_idx - 1U] >> 16);
         }
-
+//        printf("EP Size %d",ep->wMaxPacketSize);
         USB_ASSERT_MSG((fifo_size * 4) >= USB_GET_MAXPACKETSIZE(ep->wMaxPacketSize), "Ep addr %02x fifo overflow", ep->bEndpointAddress);
 
         g_dwc2_udc[busid].in_ep[ep_idx].ep_mps = USB_GET_MAXPACKETSIZE(ep->wMaxPacketSize);

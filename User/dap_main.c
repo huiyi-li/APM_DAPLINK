@@ -1,9 +1,11 @@
 #include "dap_main.h"
 #include "DAP_config.h"
 #include "DAP.h"
+#include "bsp_uart1.h"
 
-#define USB_CONFIG_SIZE (9 + CMSIS_DAP_INTERFACE_SIZE + CDC_ACM_DESCRIPTOR_LEN + CONFIG_MSC_DESCRIPTOR_LEN)
-#define INTF_NUM        (2 + 1 + CONFIG_MSC_INTF_NUM)
+#define USB_CONFIG_SIZE (9 + CMSIS_DAP_INTERFACE_SIZE + CDC_ACM_DESCRIPTOR_LEN + \
+                        CONFIG_MSC_DESCRIPTOR_LEN + CONFIG_HID_DESCRIPTOR_LEN)
+#define INTF_NUM        (2 + 1 + CONFIG_MSC_INTF_NUM + CONFIG_HID_INTF_NUM)
 
 __ALIGN_BEGIN const uint8_t USBD_WinUSBDescriptorSetDescriptor[] = {
         WBVAL(WINUSB_DESCRIPTOR_SET_HEADER_SIZE), /* wLength */
@@ -27,7 +29,8 @@ __ALIGN_BEGIN const uint8_t USBD_WinUSBDescriptorSetDescriptor[] = {
         'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0,
         'I', 0, 'n', 0, 't', 0, 'e', 0, 'r', 0, 'f', 0, 'a', 0, 'c', 0, 'e', 0,
         'G', 0, 'U', 0, 'I', 0, 'D', 0, 's', 0, 0, 0,
-        WBVAL(80), // wPropertyDataLength
+        WBVAL(80), // wProperty
+DataLength
         '{', 0,
         '9', 0, '2', 0, 'C', 0, 'E', 0, '6', 0, '4', 0, '6', 0, '2', 0, '-', 0,
         '9', 0, 'C', 0, '7', 0, '7', 0, '-', 0,
@@ -64,6 +67,34 @@ __ALIGN_BEGIN const uint8_t USBD_WinUSBDescriptorSetDescriptor[] = {
 #endif
 };
 
+// 在文件末尾添加 HID 报告描述符（示例：空描述符）
+__ALIGN_BEGIN const uint8_t hid_report_descriptor[] = {
+    0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
+    0x09, 0x06,        // Usage (Keyboard)
+    0xA1, 0x01,        // Collection (Application)
+    0x05, 0x07,        //   Usage Page (Kbrd/Keypad)
+    0x19, 0xE0,        //   Usage Minimum (0xE0)
+    0x29, 0xE7,        //   Usage Maximum (0xE7)
+    0x15, 0x00,        //   Logical Minimum (0)
+    0x25, 0x01,        //   Logical Maximum (1)
+    0x75, 0x01,        //   Report Size (1)
+    0x95, 0x08,        //   Report Count (8)
+    0x81, 0x02,        //   Input (Data,Var,Abs)
+    0x95, 0x01,        //   Report Count (1)
+    0x75, 0x08,        //   Report Size (8)
+    0x81, 0x03,        //   Input (Const,Var,Abs)
+    0x95, 0x05,        //   Report Count (5)
+    0x75, 0x01,        //   Report Size (1)
+    0x05, 0x08,        //   Usage Page (LEDs)
+    0x19, 0x01,        //   Usage Minimum (Num Lock)
+    0x29, 0x05,        //   Usage Maximum (Kana)
+    0x91, 0x02,        //   Output (Data,Var,Abs)
+    0x95, 0x03,        //   Report Count (3)
+    0x75, 0x08,        //   Report Size (8)
+    0x91, 0x03,        //   Output (Const,Var,Abs)
+    0xC0               // End Collection
+};
+
 __ALIGN_BEGIN const uint8_t USBD_BinaryObjectStoreDescriptor[] = {
         0x05,                         /* bLength */
         0x0f,                         /* bDescriptorType */
@@ -98,6 +129,42 @@ __ALIGN_BEGIN const uint8_t USBD_BinaryObjectStoreDescriptor[] = {
 #endif
 };
 
+#if (USBD_WEBUSB_ENABLE)
+/*!< custom hid report descriptor */
+const uint8_t hid_custom_report_desc[HID_CUSTOM_REPORT_DESC_SIZE] = {
+        /* USER CODE BEGIN 0 */
+        0x06, 0x00, 0xff, /* USAGE_PAGE (Vendor Defined Page 1) */
+        0x09, 0x01, /* USAGE (Vendor Usage 1) */
+        0xa1, 0x01, /* COLLECTION (Application) */
+        0x85, 0x02, /*   REPORT ID (0x02) */
+        0x09, 0x02, /*   USAGE (Vendor Usage 1) */
+        0x15, 0x00, /*   LOGICAL_MINIMUM (0) */
+        0x25, 0xff, /*LOGICAL_MAXIMUM (255) */
+        0x75, 0x08, /*   REPORT_SIZE (8) */
+        0x96, 0xff, 0x03, /*   REPORT_COUNT (1023) */
+        0x81, 0x02, /*   INPUT (Data,Var,Abs) */
+        /* <___________________________________________________> */
+        0x85, 0x01, /*   REPORT ID (0x01) */
+        0x09, 0x03, /*   USAGE (Vendor Usage 1) */
+        0x15, 0x00, /*   LOGICAL_MINIMUM (0) */
+        0x25, 0xff, /*   LOGICAL_MAXIMUM (255) */
+        0x75, 0x08, /*   REPORT_SIZE (8) */
+        0x96, 0xff, 0x03, /*   REPORT_COUNT (1023) */
+        0x91, 0x02, /*   OUTPUT (Data,Var,Abs) */
+
+        /* <___________________________________________________> */
+        0x85, 0x03, /*   REPORT ID (0x03) */
+        0x09, 0x04, /*   USAGE (Vendor Usage 1) */
+        0x15, 0x00, /*   LOGICAL_MINIMUM (0) */
+        0x25, 0xff, /*   LOGICAL_MAXIMUM (255) */
+        0x75, 0x08, /*   REPORT_SIZE (8) */
+        0x96, 0xff, 0x03, /*   REPORT_COUNT (1023) */
+        0xb1, 0x02, /*   FEATURE (Data,Var,Abs) */
+        /* USER CODE END 0 */
+        0xC0 /*     END_COLLECTION	             */
+};
+#endif
+
 static const uint8_t device_descriptor[] = {
         USB_DEVICE_DESCRIPTOR_INIT(USB_2_1, 0xEF, 0x02, 0x01, USBD_VID, USBD_PID, 0x0100, 0x01),
 };
@@ -111,6 +178,10 @@ static const uint8_t config_descriptor[] = {
         /* Endpoint IN 1 */
         USB_ENDPOINT_DESCRIPTOR_INIT(DAP_IN_EP, USB_ENDPOINT_TYPE_BULK, DAP_PACKET_SIZE, 0x00),
         CDC_ACM_DESCRIPTOR_INIT(0x01, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP, DAP_PACKET_SIZE, 0x00),
+    
+#ifdef CONFIG_DAP_HID
+        HID_DESC()
+#endif
 #ifdef CONFIG_CHERRYDAP_USE_MSC
         MSC_DESCRIPTOR_INIT(MSC_INTF_NUM, MSC_OUT_EP, MSC_IN_EP, DAP_PACKET_SIZE, 0x00),
 #endif
@@ -125,6 +196,9 @@ static const uint8_t other_speed_config_descriptor[] = {
         /* Endpoint IN 1 */
         USB_ENDPOINT_DESCRIPTOR_INIT(DAP_IN_EP, USB_ENDPOINT_TYPE_BULK, DAP_PACKET_SIZE, 0x00),
         CDC_ACM_DESCRIPTOR_INIT(0x01, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP, DAP_PACKET_SIZE, 0x00),
+#ifdef CONFIG_DAP_HID
+        HID_DESC()
+#endif
 #ifdef CONFIG_CHERRYDAP_USE_MSC
         MSC_DESCRIPTOR_INIT(MSC_INTF_NUM, MSC_OUT_EP, MSC_IN_EP, DAP_PACKET_SIZE, 0x00),
 #endif
@@ -133,7 +207,7 @@ static const uint8_t other_speed_config_descriptor[] = {
 char *string_descriptors[] = {
         (char[]) {0x09, 0x04},             /* Langid */
         "Ming",                        /* Manufacturer */
-        "CMSIS-DAP",              /* Product */
+        "CMSIS-DAP V2",              /* Product */
         "00000000000000000123456789ABCDEF", /* Serial Number */
 };
 
@@ -206,6 +280,17 @@ static volatile uint8_t uarttx_idle_flag = 0;
 USB_NOCACHE_RAM_SECTION chry_ringbuffer_t g_uartrx;
 USB_NOCACHE_RAM_SECTION chry_ringbuffer_t g_usbrx;
 
+// 新增HID端点缓冲区
+static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t hid_tx_buffer[DAP_PACKET_SIZE];
+
+// 新增HID回调函数
+void hid_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
+{
+    (void)busid; (void)ep; (void)nbytes;
+    // 处理发送完成事件
+}
+
+
 void usbd_event_handler(uint8_t busid, uint8_t event)
 {
     (void) busid;
@@ -215,6 +300,11 @@ void usbd_event_handler(uint8_t busid, uint8_t event)
             usbtx_idle_flag = 0;
             uarttx_idle_flag = 0;
             config_uart_transfer = 0;
+            #ifdef CONFIG_DAP_HID
+            memset(HID_write_buffer, 0, HID_PACKET_SIZE);
+            memset(HID_read_buffer, 0, HID_PACKET_SIZE);
+            HID_write_buffer[0] = 0x02;
+            #endif
             break;
         case USBD_EVENT_CONNECTED:
             break;
@@ -230,6 +320,10 @@ void usbd_event_handler(uint8_t busid, uint8_t event)
 
             usbd_ep_start_read(0, DAP_OUT_EP, USB_Request[0], DAP_PACKET_SIZE);
             usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+        
+            #ifdef CONFIG_DAP_HID
+            usbd_ep_start_read(0, HID_OUT_EP, HID_read_buffer, HID_PACKET_SIZE);
+            #endif
 
             break;
         case USBD_EVENT_SET_REMOTE_WAKEUP:
@@ -266,6 +360,12 @@ void dap_out_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 void dap_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void) busid;
+    USB_LOG_RAW("actual out len:%d\r\n", (unsigned int)nbytes);
+//    if (nbytes > 0) {
+//        /* Echo back to host */
+//        usbd_ep_start_write(busid, CDC_IN_EP, usb_tmpbuffer, nbytes);
+//    }
+    
     if (USB_ResponseCountI != USB_ResponseCountO) {
         // Load data from response buffer to be sent back
         usbd_ep_start_write(0, DAP_IN_EP, USB_Response[USB_ResponseIndexO], USB_RespSize[USB_ResponseIndexO]);
@@ -281,6 +381,7 @@ void dap_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 
 void usbd_cdc_acm_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
+    USB_LOG_RAW("actual in len:%d\r\n", (unsigned int)nbytes);
     (void) busid;
     usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
     printf("%s",usb_tmpbuffer);
@@ -331,6 +432,14 @@ struct usbd_endpoint cdc_in_ep = {
         .ep_addr = CDC_IN_EP,
         .ep_cb = usbd_cdc_acm_bulk_in
 };
+
+#ifdef CONFIG_DAP_HID
+// 新增端点对象
+struct usbd_endpoint hid_int_ep = {
+    .ep_addr = DAP_HID_INT_EP,
+    .ep_cb = hid_in_callback
+};
+#endif
 
 struct usbd_interface dap_intf;
 struct usbd_interface intf1;

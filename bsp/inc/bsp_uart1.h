@@ -7,6 +7,6 @@
 #include "apm32f4xx_usart.h"
 
 void bsp_uart1_init(uint32_t baud);
-void bsp_uaer1_send(uint8_t *data, uint32_t len);
+void bsp_uart1_send(uint8_t *data, uint32_t len);
 
 #endif

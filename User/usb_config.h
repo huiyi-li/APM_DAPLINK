@@ -284,7 +284,7 @@
  #define CONFIG_USB_DWC2_TX7_FIFO_SIZE (0 / 4)
  #define CONFIG_USB_DWC2_TX8_FIFO_SIZE (0 / 4)
  #else
- #define CONFIG_USB_DWC2_RXALL_FIFO_SIZE (512 / 4)
+ #define CONFIG_USB_DWC2_RXALL_FIFO_SIZE (2048 / 4)
 /* IN Endpoints Max packet Size / 4 */
  #define CONFIG_USB_DWC2_TX0_FIFO_SIZE (512 / 4)
  #define CONFIG_USB_DWC2_TX1_FIFO_SIZE (512 / 4)

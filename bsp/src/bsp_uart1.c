@@ -1,5 +1,6 @@
 #include "bsp_uart1.h"
 #include "chry_ringbuffer.h"
+#include "apm32f4xx_misc.h"
 extern chry_ringbuffer_t g_uartrx;
 static void Usart1PinInit(void)
 {
@@ -50,6 +51,7 @@ static void Usart1NVICInit(void)
 {
     USART_EnableInterrupt(USART2, USART_INT_RXBNE);
     USART_ClearStatusFlag(USART2, USART_FLAG_RXBNE);
+    
     NVIC_EnableIRQRequest(USART2_IRQn,1,0);
 }
 
@@ -80,6 +82,6 @@ void USART2_IRQHandler(void)
     if(USART2->STS & USART_FLAG_RXBNE)
     {
         data = USART2->DATA_B.DATA;
-        //chry_ringbuffer_write_byte(&g_uartrx,data);
+        chry_ringbuffer_write_byte(&g_uartrx,data);
     }
 }

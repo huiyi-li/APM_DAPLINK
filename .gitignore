@@ -25,3 +25,6 @@ CMakeLists.txt
 *.uvoptx
 verbose
 build_log
+*.o
+*.d
+*.axf

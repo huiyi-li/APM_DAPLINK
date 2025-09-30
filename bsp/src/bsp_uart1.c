@@ -9,6 +9,7 @@ static void Usart1PinInit(void)
 
     /* Enable GPIO clock */
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOA);
+    RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOD);
 
     RCM_EnableAPB1PeriphClock(RCM_APB1_PERIPH_USART2);
 
@@ -16,7 +17,7 @@ static void Usart1PinInit(void)
     GPIO_ConfigPinAF(GPIOA, GPIO_PIN_SOURCE_2, GPIO_AF_USART2);
 
     /* Connect PXx to USARTx_Rx */
-    GPIO_ConfigPinAF(GPIOA, GPIO_PIN_SOURCE_3, GPIO_AF_USART2);
+    GPIO_ConfigPinAF(GPIOD, GPIO_PIN_SOURCE_6, GPIO_AF_USART2);
 
     /* Configure USART Tx as alternate function push-pull */
     GPIO_configStruct.mode = GPIO_MODE_AF;
@@ -26,11 +27,28 @@ static void Usart1PinInit(void)
 
     /* Configure USART Rx as input floating */
     GPIO_configStruct.mode = GPIO_MODE_AF;
-    GPIO_configStruct.pin = GPIO_PIN_3;
-    GPIO_Config(GPIOA, &GPIO_configStruct);
+    GPIO_configStruct.pin = GPIO_PIN_6;
+    GPIO_Config(GPIOD, &GPIO_configStruct);
 }
 
 static void Usart1Init(uint32_t baud)
+{
+    USART_Config_T usartConfigStruct;
+
+    /* USART1 configuration */
+    usartConfigStruct.baudRate = baud;
+    usartConfigStruct.hardwareFlow = USART_HARDWARE_FLOW_NONE;
+    usartConfigStruct.mode = USART_MODE_TX_RX;
+    usartConfigStruct.parity = USART_PARITY_NONE;
+    usartConfigStruct.stopBits = USART_STOP_BIT_1;
+    usartConfigStruct.wordLength = USART_WORD_LEN_8B;
+    USART_Config(USART2, &usartConfigStruct);
+
+    /* Enable USART */
+    USART_Enable(USART2);
+}
+
+void Usart1Config(uint32_t baud, uint8_t parity, uint8_t data_bit, uint8_t stop_bit)
 {
     USART_Config_T usartConfigStruct;
 
@@ -81,6 +99,7 @@ void USART2_IRQHandler(void)
     uint8_t data;
     if(USART2->STS & USART_FLAG_RXBNE)
     {
+        USART_ClearStatusFlag(USART2, USART_FLAG_RXBNE);
         data = USART2->DATA_B.DATA;
         chry_ringbuffer_write_byte(&g_uartrx,data);
     }

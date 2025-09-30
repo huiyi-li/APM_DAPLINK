@@ -124,7 +124,9 @@ void    thread_0_entry(ULONG thread_input)
 void InitThread(ULONG thread_input)
 {
 
-    
+    RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOB);
+    RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOC);
+    RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOE);
 //    chry_dap_init(0,USB_OTG_FS_BASE);
     chry_dap_init(0,USB_OTG_HS_BASE);
 //    void cdc_acm_init(uint8_t busid, uintptr_t reg_base);

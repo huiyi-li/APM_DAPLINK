@@ -8,5 +8,6 @@
 
 void bsp_uart1_init(uint32_t baud);
 void bsp_uart1_send(uint8_t *data, uint32_t len);
+void Usart1Config(uint32_t baud, uint8_t parity, uint8_t data_bit, uint8_t stop_bit);
 
 #endif

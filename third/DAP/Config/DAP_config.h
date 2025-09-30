@@ -59,23 +59,11 @@ This information includes:
 #define __WEAK __attribute__((weak))
 #endif
 
-//USB control pin
-#define USB_CONNECT_PORT_ENABLE()    __HAL_RCC_GPIOA_CLK_ENABLE()
-#define USB_CONNECT_PORT_DISABLE()   __HAL_RCC_GPIOA_CLK_DISABLE()
-#define USB_CONNECT_PORT             GPIOA
-#define USB_CONNECT_PIN              GPIO_PIN_15
-#define USB_CONNECT_ON()             (USB_CONNECT_PORT->BSRR = USB_CONNECT_PIN)
-#define USB_CONNECT_OFF()            (USB_CONNECT_PORT->BRR  = USB_CONNECT_PIN)
 
 //Connected LED
-#define CONNECTED_LED_PORT           GPIOB
-#define CONNECTED_LED_PIN            GPIO_PIN_6
-#define CONNECTED_LED_PIN_Bit        6
-
-//When bootloader, disable the target port(not used)
-#define POWER_EN_PIN_PORT            GPIOB
-#define POWER_EN_PIN                 GPIO_PIN_5
-#define POWER_EN_Bit                 15
+#define CONNECTED_LED_PORT           GPIOE
+#define CONNECTED_LED_PIN            GPIO_PIN_0
+#define CONNECTED_LED_PIN_Bit        0
 
 // nRESET OUT Pin
 #define nRESET_PIN_PORT              GPIOB
@@ -84,34 +72,34 @@ This information includes:
 
 //SWD
 #define SWCLK_TCK_PIN_PORT           GPIOB
-#define SWCLK_TCK_PIN                GPIO_PIN_3
+#define SWCLK_TCK_PIN                GPIO_PIN_13
 #define SWCLK_TCK_PIN_Bit            13
 
-#define SWDIO_OUT_PIN_PORT           GPIOB
-#define SWDIO_OUT_PIN                GPIO_PIN_4
-#define SWDIO_OUT_PIN_Bit            14
+#define SWDIO_OUT_PIN_PORT           GPIOC
+#define SWDIO_OUT_PIN                GPIO_PIN_3
+#define SWDIO_OUT_PIN_Bit            3
 
-#define SWDIO_IN_PIN_PORT            GPIOB
-#define SWDIO_IN_PIN                 GPIO_PIN_2
-#define SWDIO_IN_PIN_Bit             12
+#define SWDIO_IN_PIN_PORT            GPIOC
+#define SWDIO_IN_PIN                 GPIO_PIN_3
+#define SWDIO_IN_PIN_Bit             3
 
 //LEDs
 //USB status LED
-#define RUNNING_LED_PORT             GPIOA
-#define RUNNING_LED_PIN              GPIO_PIN_9
-#define RUNNING_LED_Bit              9
+#define RUNNING_LED_PORT             GPIOE
+#define RUNNING_LED_PIN              GPIO_PIN_0
+#define RUNNING_LED_Bit              0
 
-#define PIN_HID_LED_PORT             GPIOA
-#define PIN_HID_LED                  GPIO_PIN_9
-#define PIN_HID_LED_Bit              9
+#define PIN_HID_LED_PORT             GPIOE
+#define PIN_HID_LED                  GPIO_PIN_1
+#define PIN_HID_LED_Bit              1
 
-#define PIN_CDC_LED_PORT             GPIOA
-#define PIN_CDC_LED                  GPIO_PIN_9
-#define PIN_CDC_LED_Bit              9
+#define PIN_CDC_LED_PORT             GPIOE
+#define PIN_CDC_LED                  GPIO_PIN_2
+#define PIN_CDC_LED_Bit              2
 
-#define PIN_MSC_LED_PORT             GPIOA
-#define PIN_MSC_LED                  GPIO_PIN_9
-#define PIN_MSC_LED_Bit              9
+#define PIN_MSC_LED_PORT             GPIOE
+#define PIN_MSC_LED                  GPIO_PIN_2
+#define PIN_MSC_LED_Bit              2
 
 
 /// Processor Clock of the Cortex-M MCU used in the Debug Unit.
@@ -326,38 +314,31 @@ __STATIC_INLINE uint8_t DAP_GetProductFirmwareVersionString (char *str) {
 
 __STATIC_INLINE void pin_out_init(GPIO_T* GPIOx, uint8_t pin_bit)
 {
-    GPIOx->MODE &= ~(0x00000003 << ((pin_bit) << 2));
-    GPIOx->MODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 2) );
-    GPIOx->OMODE &= ~(0x00000003 << ((pin_bit) << 2));
-    
-    GPIOx->OSSEL |= ( ((uint32_t)(0x03)) << ((pin_bit) << 2) );
+    GPIOx->MODE &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->MODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 1) );
+    GPIOx->OMODE &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->PUPD &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->OSSEL |= ( ((uint32_t)(0x03)) << ((pin_bit) << 1) );
 }
 
 __STATIC_INLINE void pin_out_od_init(GPIO_T* GPIOx, uint8_t pin_bit)
 {
-    GPIOx->MODE &= ~(0x00000003 << ((pin_bit) << 2));
-    GPIOx->MODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 2) );
-    GPIOx->OMODE &= ~(0x00000003 << ((pin_bit) << 2));
-    GPIOx->OMODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 2) );
+    GPIOx->MODE &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->MODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 1) );
+    GPIOx->OMODE &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->OMODE |= ( ((uint32_t)(0x01)) << ((pin_bit) << 1) );
+    GPIOx->PUPD &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->PUPD = (((uint32_t)(1)) << pin_bit);
     
-    GPIOx->OSSEL |= ( ((uint32_t)(0x03)) << ((pin_bit) << 2) );
+    GPIOx->OSSEL |= ( ((uint32_t)(0x03)) << ((pin_bit) << 1) );
 }
 
 __STATIC_INLINE void pin_in_init(GPIO_T* GPIOx, uint8_t pin_bit, uint8_t mode)
 {
-    uint8_t config;
-    if((mode == 1)||(mode == 2))
-        config = 0x0; 
-    else
-        {
-            mode = 0;
-        config = 0x3; //GPIO_Mode_AIN
-    }
-
-    GPIOx->MODE &= ~(0x00000003 << ((pin_bit) << 2));
-    GPIOx->MODE |= ( ((uint32_t)(config)) << ((pin_bit) << 2) );
-    GPIOx->PUPD &= ~(0x00000003 << ((pin_bit) << 2));
-    GPIOx->PUPD = (((uint32_t)mode) << pin_bit);
+    
+    GPIOx->MODE &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->PUPD &= ~(0x3 << ((pin_bit) << 1));
+    GPIOx->PUPD = (((uint32_t)(1)) << pin_bit);
 
 }
 
@@ -433,9 +414,9 @@ Disables the DAP Hardware I/O pins which configures:
  - TCK/SWCLK, TMS/SWDIO, TDI, TDO, nTRST, nRESET to High-Z mode.
 */
 __STATIC_INLINE void PORT_OFF (void) {
-  pin_in_init(SWCLK_TCK_PIN_PORT, SWCLK_TCK_PIN_Bit, 0);
-    pin_in_init(SWDIO_OUT_PIN_PORT, SWDIO_OUT_PIN_Bit, 0);
-    pin_in_init(SWDIO_IN_PIN_PORT, SWDIO_IN_PIN_Bit, 0);
+//  pin_in_init(SWCLK_TCK_PIN_PORT, SWCLK_TCK_PIN_Bit, 0);
+//    pin_in_init(SWDIO_OUT_PIN_PORT, SWDIO_OUT_PIN_Bit, 0);
+//    pin_in_init(SWDIO_IN_PIN_PORT, SWDIO_IN_PIN_Bit, 0);
 }
 
 

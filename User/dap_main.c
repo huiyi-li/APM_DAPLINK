@@ -67,7 +67,7 @@ DataLength
 #endif
 };
 
-// ÔÚÎÄ¼þÄ©Î²Ìí¼Ó HID ±¨¸æÃèÊö·û£¨Ê¾Àý£º¿ÕÃèÊö·û£©
+// åœ¨æ–‡ä»¶æœ«å°¾æ·»åŠ  HID æŠ¥å‘Šæè¿°ç¬¦ï¼ˆç¤ºä¾‹ï¼šç©ºæè¿°ç¬¦ï¼‰
 __ALIGN_BEGIN const uint8_t hid_report_descriptor[] = {
     0x05, 0x01,        // Usage Page (Generic Desktop Ctrls)
     0x09, 0x06,        // Usage (Keyboard)
@@ -273,6 +273,7 @@ USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t uartrx_ringbuffer[CONFIG_UARTRX_R
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usbrx_ringbuffer[CONFIG_USBRX_RINGBUF_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_tmpbuffer[DAP_PACKET_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_cdc_in_buffer[DAP_PACKET_SIZE];
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_cdc_out_buffer[DAP_PACKET_SIZE];
 
 
 static volatile uint8_t usbrx_idle_flag = 0;
@@ -282,14 +283,14 @@ static volatile uint8_t uarttx_idle_flag = 0;
 USB_NOCACHE_RAM_SECTION chry_ringbuffer_t g_uartrx;
 USB_NOCACHE_RAM_SECTION chry_ringbuffer_t g_usbrx;
 
-// ÐÂÔöHID¶Ëµã»º³åÇø
+// æ–°å¢žHIDç«¯ç‚¹ç¼“å†²åŒº
 static USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t hid_tx_buffer[DAP_PACKET_SIZE];
 
-// ÐÂÔöHID»Øµ÷º¯Êý
+// æ–°å¢žHIDå›žè°ƒå‡½æ•°
 void hid_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void)busid; (void)ep; (void)nbytes;
-    // ´¦Àí·¢ËÍÍê³ÉÊÂ¼þ
+    // å¤„ç†å‘é€å®Œæˆäº‹ä»¶
 }
 
 
@@ -385,7 +386,7 @@ void usbd_cdc_acm_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     USB_LOG_RAW("actual in len:%d\r\n", (unsigned int)nbytes);
     (void) busid;
-    usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+    // usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
 //    printf("%s",usb_tmpbuffer);
     chry_ringbuffer_write(&g_usbrx, usb_tmpbuffer, nbytes);
     if (chry_ringbuffer_get_free(&g_usbrx) >= DAP_PACKET_SIZE) {
@@ -438,7 +439,7 @@ struct usbd_endpoint cdc_in_ep = {
 };
 
 #ifdef CONFIG_DAP_HID
-// ÐÂÔö¶Ëµã¶ÔÏó
+// æ–°å¢žç«¯ç‚¹å¯¹è±¡
 struct usbd_endpoint hid_int_ep = {
     .ep_addr = DAP_HID_INT_EP,
     .ep_cb = hid_in_callback
@@ -590,18 +591,41 @@ void chry_dap_usb2uart_handle(void)
 
     /* usbrx to uart tx */
     if (uarttx_idle_flag) {
-        if (chry_ringbuffer_get_used(&g_usbrx)) {
+        size = chry_ringbuffer_get_used(&g_usbrx);
+        if (size) {
+            if(DAP_PACKET_SIZE < size)
+                size = DAP_PACKET_SIZE;
             uarttx_idle_flag = 0;
             /* start first transfer */
-            buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
-            chry_dap_usb2uart_uart_send_bydma(buffer, size);
+            chry_ringbuffer_read (&g_usbrx, usb_cdc_out_buffer, size);
+            chry_dap_usb2uart_uart_send_bydma(usb_cdc_out_buffer, size);
         }
+//         if (chry_ringbuffer_get_used(&g_usbrx)) {
+//             uarttx_idle_flag = 0;
+//             /* start first transfer */
+//             buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
+//             chry_ringbuffer_linear_read_done(&g_usbrx, size);
+//             chry_dap_usb2uart_uart_send_bydma(buffer, size);
+// //            chry_ringbuffer_linear_read_done(&g_usbrx, size);
+//         }
     } 
     
     if (chry_ringbuffer_get_used(&g_usbrx)) {
-        buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
-        chry_dap_usb2uart_uart_send_bydma(buffer, size);
+        size = chry_ringbuffer_get_used(&g_usbrx);
+        if (size) {
+            if(DAP_PACKET_SIZE < size)
+                size = DAP_PACKET_SIZE;
+            uarttx_idle_flag = 0;
+            /* start first transfer */
+            chry_ringbuffer_read (&g_usbrx, usb_cdc_out_buffer, size);
+            chry_dap_usb2uart_uart_send_bydma(usb_cdc_out_buffer, size);
+        }
     }
+    //     buffer = chry_ringbuffer_linear_read_setup(&g_usbrx, &size);
+    //     chry_ringbuffer_linear_read_done(&g_usbrx, size);
+    //     chry_dap_usb2uart_uart_send_bydma(buffer, size);
+        
+    // }
 
     /* check whether usb rx ringbuffer have space to store */
     if (usbrx_idle_flag) {
@@ -610,7 +634,7 @@ void chry_dap_usb2uart_handle(void)
             usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
         }
     }
-    usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
+    // usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
 //    printf("%d",usb_tmpbuffer[0]);
 }
 

@@ -1,104 +1,148 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.15)
 
-#
-# This file is generated only once,
-# and is not re-generated if converter is called multiple times.
-#
-# User is free to modify the file as much as necessary
-#
+# 必须在 project() 之前设置工具链！
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_LIST_DIR}/cmake/gcc-arm-none-eabi.cmake")
 
-# Setup compiler settings
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-set(CMAKE_C_EXTENSIONS ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Define the build type
+# 设置构建类型（必须在 project 前或通过 cache 设置）
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug")
+    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
 endif()
 
-# Set the project name
-set(CMAKE_PROJECT_NAME firmware)
+# 设置项目名称和版本
+project(APM32PRJ VERSION 1.0.0 LANGUAGES C CXX ASM)
 
-# Include toolchain file
-include("cmake/gcc-arm-none-eabi.cmake")
+# 设置C标准
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
-# Enable compile command to ease indexing with e.g. clangd
-set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
+# 启用编译命令导出
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Enable CMake support for ASM and C languages
-enable_language(C ASM)
+# 设置目标处理器架构（仅用于显示）
+set(ARCHITECTURE "cortex-m4")
+set(FPU_TYPE "fpv4-sp-d16")
+set(FPU_ABI "hard")
 
-# Core project settings
-project(${CMAKE_PROJECT_NAME})
-message("Build type: " ${CMAKE_BUILD_TYPE})
+# 添加编译定义
+add_compile_definitions(
+    USE_HAL_DRIVER
+    APM32F40X
+    DEBUG
+)
 
-# Create an executable object type
+# 创建可执行文件（必须先定义目标！）
 add_executable(${CMAKE_PROJECT_NAME})
 
-# Add STM32CubeMX generated sources
-add_subdirectory(cmake/apm32_cmake)
+option(ENABLE_CMSIS "Enable CMSIS support" ON)
+option(ENABLE_STD "Enable std support" ON)
+option(ENABLE_DEVICE "Enable std support" ON)
+# 添加其他目录的规则
+add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries)
+add_subdirectory(third)
+add_subdirectory(${CMAKE_SOURCE_DIR}/bsp)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third/CherryRB)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_cmsis_headers)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_device_headers)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32f4xx_stdperiph)
+target_link_libraries(bsp PRIVATE apm32_device_headers)
+target_link_libraries(bsp PRIVATE apm32_cmsis_headers)
+target_link_libraries(bsp PRIVATE apm32f4xx_stdperiph)
+target_link_libraries(bsp PRIVATE CherryRB)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE bsp)
 
-# Link directories setup
-target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined library search paths
+set(THREADX_ARCH "cortex_m4")        # 根据实际MCU架构调整
+set(THREADX_TOOLCHAIN "gnu")         # 根据实际工具链调整
+add_subdirectory(third/threadx)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE threadx)
+
+# 设置操作系统抽象层
+set(CONFIG_CHERRYUSB_OSAL "threadx")
+
+# 添加源文件
+file(GLOB DAP_SOURCE
+        "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Source/*.c"
 )
-# 自动收集标准外设驱动源文件
-file(GLOB THREADX_SRC "${CMAKE_SOURCE_DIR}/third/threadx/common/src/*.c")
-file(GLOB THREADX_ASM "${CMAKE_SOURCE_DIR}/third/threadx/ports/cortex_m4/gnu/src/*.S")
-# Add sources to executable
+
+# 添加源文件
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user sources here
-    ${THREADX_SRC}
-    ${THREADX_ASM}
-    ${CMAKE_SOURCE_DIR}/bsp/src/bsp_sysclk.c
-    ${CMAKE_SOURCE_DIR}/bsp/src/bsp_printf.c
-    ${CMAKE_SOURCE_DIR}/User/tx_initialize_low_level.S
+    ${DAP_SOURCE}
+    ${CMAKE_SOURCE_DIR}/User/main.c
+    ${CMAKE_SOURCE_DIR}/User/apm32f4xx_int.c
+    ${CMAKE_SOURCE_DIR}/User/dap_main.c
+    ${CMAKE_SOURCE_DIR}/User/user_usb_init.c
 )
 
-# Add include paths
+# 添加启动文件
+file(GLOB STARTUP_FILES
+        "${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/startup_apm32f40x.S"
+        ${CMAKE_SOURCE_DIR}/User/tx_initialize_low_level.S
+)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${STARTUP_FILES})
+
+# 添加包含目录
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined include paths
-    ${CMAKE_SOURCE_DIR}/third/threadx/common/inc
-    ${CMAKE_SOURCE_DIR}/third/threadx/ports/cortex_m4/gnu/inc
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/core"
+    "${CMAKE_CURRENT_SOURCE_DIR}/User"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Config"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/common"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/cdc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/msc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/hid"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryRB"
 )
 
-# Add project symbols (macros)
-target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
-    # Add user defined symbols
+# 设置链接脚本（项目特定）
+set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/APM32F4xxxG_FLASH.ld")
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
+    -T ${LINKER_SCRIPT}
+    -Wl,-Map=${CMAKE_PROJECT_NAME}.map
 )
 
-# Add linked libraries
-target_link_libraries(${CMAKE_PROJECT_NAME}
-    apm32_cmake
-
-    # Add user defined libraries
+# 链接标准库
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+    c
+    m
+    # 如果使用 C++，取消注释以下两行：
+    # stdc++
+    # supc++
 )
 
-# Generate hex file
+# 设置输出目录
+set(CMAKE_EXECUTABLE_OUTPUT_PATH "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_PATH "${CMAKE_BINARY_DIR}/lib")
+
+# 生成 hex 文件
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O ihex ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.hex
+    COMMAND ${CMAKE_OBJCOPY} -O ihex $<TARGET_FILE:${CMAKE_PROJECT_NAME}> $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/${CMAKE_PROJECT_NAME}.hex
     COMMENT "Generating HEX file"
 )
 
-# Generate bin file
+# 生成 bin 文件
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin
+    COMMAND ${CMAKE_OBJCOPY} -O binary $<TARGET_FILE:${CMAKE_PROJECT_NAME}> $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>/${CMAKE_PROJECT_NAME}.bin
     COMMENT "Generating BIN file"
 )
 
-# Custom target to generate hex and bin files
-add_custom_target(genfiles
+# 显示内存使用
+add_custom_target(size
+    COMMAND ${CMAKE_SIZE} $<TARGET_FILE:${CMAKE_PROJECT_NAME}>
     DEPENDS ${CMAKE_PROJECT_NAME}
-    COMMAND ${CMAKE_OBJCOPY} -O ihex ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.hex
-    COMMAND ${CMAKE_OBJCOPY} -O binary ${CMAKE_PROJECT_NAME}.elf ${CMAKE_PROJECT_NAME}.bin
-    COMMENT "Generating HEX and BIN files"
+    COMMENT "Memory usage"
 )
 
-# Copy compile_commands.json to the project directory
+# 复制 compile_commands.json 到项目根目录
 add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/compile_commands.json
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_BINARY_DIR}/compile_commands.json
+        ${CMAKE_SOURCE_DIR}/compile_commands.json
     COMMENT "Copying compile_commands.json to project directory"
 )
 
+# 显示构建信息
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Target processor: ${ARCHITECTURE}")
+message(STATUS "FPU type: ${FPU_TYPE}")
+message(STATUS "FPU ABI: ${FPU_ABI}")
+message(STATUS "Linker script: ${LINKER_SCRIPT}")

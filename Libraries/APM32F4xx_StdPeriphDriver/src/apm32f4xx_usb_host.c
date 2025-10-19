@@ -25,7 +25,7 @@
 
 /* Includes */
 #include "apm32f4xx_usb_host.h"
-#include "bsp_delay.h"
+// #include "bsp_delay.h"
 
 /** @addtogroup APM32F4xx_StdPeriphDriver
   @{
@@ -878,9 +878,9 @@ void USBH_OTG_ResetHost(USBH_HANDLE_T* usbhh)
     usbhh->usbHost->HPORTCSTS_B.PRST = BIT_SET;
 
     /* This bit need to keep more than 10 ms */
-    APM_DelayMs(100);
+    // //APM_DelayMs(100);
     usbhh->usbHost->HPORTCSTS_B.PRST = BIT_RESET;
-    APM_DelayMs(10);
+    // //APM_DelayMs(10);
 }
 
 /*!
@@ -1455,7 +1455,7 @@ void USBH_Config(USBH_HANDLE_T* usbhh)
 
             /* Reset core */
             USB_OTG_CoreReset(usbhh->usbGlobal);
-            APM_DelayMs(50);
+            //APM_DelayMs(50);
 
             /* battery status */
             if (usbhh->usbCfg.batteryStatus == ENABLE)
@@ -1482,7 +1482,7 @@ void USBH_Config(USBH_HANDLE_T* usbhh)
 
             /* Reset core */
             USB_OTG_CoreReset(usbhh->usbGlobal);
-            APM_DelayMs(50);
+            //APM_DelayMs(50);
             
             /* battery status */
             if (usbhh->usbCfg.batteryStatus == ENABLE)
@@ -1518,7 +1518,7 @@ void USBH_Config(USBH_HANDLE_T* usbhh)
         
         /* Reset core */
         USB_OTG_CoreReset(usbhh->usbGlobal);
-        APM_DelayMs(50);
+        //APM_DelayMs(50);
     }
 
     if (usbhh->usbCfg.dmaStatus == ENABLE)

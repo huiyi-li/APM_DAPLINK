@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
 if(CONFIG_CHERRYUSB)
-
+    include(${CMAKE_CURRENT_LIST_DIR}/cherryusb.cmake)
 if(BL_SDK_BASE)
     message(STATUS "enable cherryusb in bouffalo_sdk")
 

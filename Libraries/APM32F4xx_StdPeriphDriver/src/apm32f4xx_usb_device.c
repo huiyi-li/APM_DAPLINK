@@ -26,7 +26,7 @@
 /* Includes */
 #include "apm32f4xx_usb_device.h"
 #include "apm32f4xx_rcm.h"
-#include "bsp_delay.h"
+// #include "bsp_delay.h"
 
 /** @addtogroup APM32F4xx_StdPeriphDriver
   @{
@@ -1159,7 +1159,7 @@ void USBD_Config(USBD_HANDLE_T* usbdh)
 
             /* Reset core */
             USB_OTG_CoreReset(usbdh->usbGlobal);
-            APM_DelayMs(50);
+            // APM_DelayMs(50);
 
             /* battery status */
             if (usbdh->usbCfg.batteryStatus == ENABLE)
@@ -1220,7 +1220,7 @@ void USBD_Config(USBD_HANDLE_T* usbdh)
         
         /* Reset core */
         USB_OTG_CoreReset(usbdh->usbGlobal);
-        APM_DelayMs(50);
+        // APM_DelayMs(50);
     }
 
     if (usbdh->usbCfg.dmaStatus == ENABLE)

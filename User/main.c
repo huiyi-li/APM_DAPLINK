@@ -37,21 +37,10 @@
 #include "user_usb_init.h"
 #include "usbd_core.h"
 #include "dap_main.h"
-
 #include "bsp_uart1.h"
-/** @addtogroup Examples
-  @{
-  */
 
-/** @addtogroup Template
-  @{
-  */
-
-/** @defgroup Template_Functions Functions
-  @{
-  */
-#define RCM_LED   RCM_AHB1_PERIPH_GPIOC
-#define LED_PORT  GPIOC
+#define RCM_LED   RCM_AHB1_PERIPH_GPIOE
+#define LED_PORT  GPIOE
 #define LED_PIN   GPIO_PIN_0
 #define VECT_TAB_OFFSET  0x00
 
@@ -72,18 +61,18 @@ void GpioLedInit(void)
     GPIO_ResetBit(LED_PORT, LED_PIN);
 }
 
-void __attribute__((constructor)) FPU_Init(void) 
-{
-    #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
-    SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  //!< set CP10 and CP11 Full Access
-    #endif
-    /* Configure the Vector Table location add offset address */
-    #ifdef VECT_TAB_SRAM
-    SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
-    #else
-    SCB->VTOR = FMC_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
-    #endif
-}
+// void __attribute__((constructor)) FPU_Init(void) 
+// {
+//     #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+//     SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  //!< set CP10 and CP11 Full Access
+//     #endif
+//     /* Configure the Vector Table location add offset address */
+//     #ifdef VECT_TAB_SRAM
+//     SCB->VTOR = SRAM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
+//     #else
+//     SCB->VTOR = FMC_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
+//     #endif
+// }
 
 TX_THREAD               thread_0;
 TX_THREAD               ThreadInit;
@@ -127,17 +116,18 @@ void InitThread(ULONG thread_input)
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOB);
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOC);
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOE);
-//    chry_dap_init(0,USB_OTG_FS_BASE);
+    // chry_dap_init(0,USB_OTG_FS_BASE);
     chry_dap_init(0,USB_OTG_HS_BASE);
 //    void cdc_acm_init(uint8_t busid, uintptr_t reg_base);
 //    cdc_acm_init(0,USB_OTG_FS_BASE);
 //    cdc_acm_init(0,USB_OTG_HS_BASE);
-    while(1){
+     while(1){
 //        cdc_acm_data_send_with_dtr_test();
-    chry_dap_handle();
-    chry_dap_usb2uart_handle();
+    // chry_dap_handle();
+    // chry_dap_usb2uart_handle();
 
-    }
+    tx_thread_sleep(1000);
+     }
 }
 
 void tx_application_define(void *first_unused_memory)
@@ -154,15 +144,15 @@ void tx_application_define(void *first_unused_memory)
 
     /* Allocate the stack for thread 0.  */
     tx_byte_allocate(&byte_pool_0, (VOID **) &pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
-    tx_byte_allocate(&byte_pool_0, (VOID **) &InitTaskPtr, DEMO_STACK_SIZE, TX_NO_WAIT);
+    tx_byte_allocate(&byte_pool_0, (VOID **) &InitTaskPtr, 2048, TX_NO_WAIT);
 
     /* Create the main thread.  */
-    tx_thread_create(&thread_0, "thread 0", thread_0_entry, 0,  
-            pointer, DEMO_STACK_SIZE, 
+    tx_thread_create(&thread_0, "thread 0", thread_0_entry, 0,
+            pointer, DEMO_STACK_SIZE,
             0, 0, TX_NO_TIME_SLICE, TX_AUTO_START);
-    
-     tx_thread_create(&ThreadInit, "thread Init", InitThread, 0,  
-            InitTaskPtr, DEMO_STACK_SIZE, 
+
+     tx_thread_create(&ThreadInit, "thread Init", InitThread, 0,
+            InitTaskPtr, 2048,
             6, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
 }
@@ -182,7 +172,6 @@ const char * const g_hello = "Hello, string is Initialized!\r\n";
  */
 int main(void)
 {
-//    FPU_Init();
     bsp_sysclk_init();
     GpioLedInit();
     bspInitUart(115200);
@@ -191,14 +180,14 @@ int main(void)
     
     
     
-//    bsp_uart1_send((uint8_t*)g_hello, strlen(g_hello));
-    // int* ptr = malloc(100);
-    // if (ptr == NULL) {
-    //     printf("malloc failed\r\n");
-    //     while (1) {
-    //     }
-    // }
-    // *ptr = 100;
+    bsp_uart1_send((uint8_t*)g_hello, strlen(g_hello));
+    int* ptr = malloc(100);
+    if (ptr == NULL) {
+        printf("malloc failed\r\n");
+        while (1) {
+        }
+    }
+    *ptr = 100;
     printf("Hello, world!\r\n");
     tx_kernel_enter();
 

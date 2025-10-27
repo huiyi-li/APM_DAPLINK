@@ -28,3 +28,9 @@ build_log
 *.o
 *.d
 *.axf
+*.lnp
+*.crf
+build
+MDK/Objects
+MDKV5/Objects
+.idea

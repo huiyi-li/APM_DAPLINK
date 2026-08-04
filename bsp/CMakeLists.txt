@@ -12,17 +12,15 @@ target_include_directories(${LIB_NAME} PUBLIC
         inc
 )
 
-# 添加源文件
-file(GLOB BSP_SOURCES 
-    "src/bsp_delay.c"
-    "src/bsp_sysclk.c"
-    "src/bsp_uart1.c"
-    "src/bsp_printf.c"
-)
-
-# 添加源文件到库
 target_sources(${LIB_NAME} PRIVATE
-    ${BSP_SOURCES}
+    src/bsp_button.c
+    src/bsp_cdc_uart.c
+    src/bsp_delay.c
+    src/bsp_led.c
+    src/bsp_lcd_bus.c
+    src/bsp_printf.c
+    src/bsp_sysclk.c
+    src/bsp_w25qxx.c
 )
 
 # 添加编译定义

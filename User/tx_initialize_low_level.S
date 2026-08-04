@@ -126,7 +126,7 @@ _tx_initialize_low_level:
     ORR     r1, r1, #1                              @ Set the CYCCNTENA bit
     STR     r1, [r0]                                @ Enable the cycle count register
 @
-@    /* Configure SysTick for 100Hz clock, or 16384 cycles if no reference.  */
+@    /* Configure SysTick for a 1 kHz ThreadX timer tick.  */
 @
     MOV     r0, #0xE000E000                         @ Build address of NVIC registers
     LDR     r1, =SYSTICK_CYCLES

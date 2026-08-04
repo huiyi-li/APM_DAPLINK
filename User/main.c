@@ -27,7 +27,6 @@
 #include "main.h"
 #include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include "apm32f4xx_gpio.h"
 #include "apm32f4xx_rcm.h"
 #include "bsp_sysclk.h"
@@ -37,29 +36,13 @@
 #include "user_usb_init.h"
 #include "usbd_core.h"
 #include "dap_main.h"
-#include "bsp_uart1.h"
+#include "bsp_led.h"
+#include "bsp_button.h"
+#include "bsp_cdc_uart.h"
+#include "bsp_w25qxx.h"
+#include "display_port.h"
 
-#define RCM_LED   RCM_AHB1_PERIPH_GPIOE
-#define LED_PORT  GPIOE
-#define LED_PIN   GPIO_PIN_0
 #define VECT_TAB_OFFSET  0x00
-
-void GpioLedInit(void)
-{
-    GPIO_Config_T  configStruct;
-
-    /* Enable the GPIO_LED Clock */
-    RCM_EnableAHB1PeriphClock(RCM_LED);
-
-    /* Configure the GPIO_LED pin */
-    GPIO_ConfigStructInit(&configStruct);
-    configStruct.pin = LED_PIN;
-    configStruct.mode = GPIO_MODE_OUT;
-    configStruct.speed = GPIO_SPEED_50MHz;
-
-    GPIO_Config(LED_PORT, &configStruct);
-    GPIO_ResetBit(LED_PORT, LED_PIN);
-}
 
 // void __attribute__((constructor)) FPU_Init(void) 
 // {
@@ -96,26 +79,28 @@ TX_BLOCK_POOL           block_pool_0;
 
 void    thread_0_entry(ULONG thread_input)
 {
-
-    UINT    status;
-    /* This thread simply sits in while-forever-sleep loop.  */
+    (void)thread_input;
     while(1)
     {
+        const ULONG now = tx_time_get();
 
-        /* Increment the thread counter.  */
-//        thread_0_counter++;
-        GPIO_ToggleBit(LED_PORT, LED_PIN);
-        /* Sleep for 10 ticks.  */
-        tx_thread_sleep(1000);
+        bsp_button_process((uint32_t)now);
+        tx_thread_sleep(10U);
     }
 }
 
 void InitThread(ULONG thread_input)
 {
+    DISPLAY_PORT_STATUS_T display_status;
+
+    (void)thread_input;
 
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOB);
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOC);
     RCM_EnableAHB1PeriphClock(RCM_AHB1_PERIPH_GPIOE);
+    display_status = display_port_init();
+    printf("ST7789 init: %s\r\n",
+           (display_status == DISPLAY_PORT_OK) ? "ok" : "failed");
     // chry_dap_init(0,USB_OTG_FS_BASE);
     chry_dap_init(0,USB_OTG_HS_BASE);
 //    void cdc_acm_init(uint8_t busid, uintptr_t reg_base);
@@ -123,10 +108,10 @@ void InitThread(ULONG thread_input)
 //    cdc_acm_init(0,USB_OTG_HS_BASE);
      while(1){
 //        cdc_acm_data_send_with_dtr_test();
-    // chry_dap_handle();
-    // chry_dap_usb2uart_handle();
+    chry_dap_handle();
+    chry_dap_usb2uart_handle();
 
-    tx_thread_sleep(1000);
+    tx_thread_sleep(1U);
      }
 }
 
@@ -172,23 +157,26 @@ const char * const g_hello = "Hello, string is Initialized!\r\n";
  */
 int main(void)
 {
+    BSP_W25Q64_STATUS_T flash_status;
+    uint32_t flash_jedec_id = 0U;
+
     bsp_sysclk_init();
-    GpioLedInit();
-    bspInitUart(115200);
-    bsp_uart1_init(115200);
-    UsartWirte(DEBUG_COM, (uint8_t*)g_hello, strlen(g_hello));
-    
-    
-    
-    bsp_uart1_send((uint8_t*)g_hello, strlen(g_hello));
-    int* ptr = malloc(100);
-    if (ptr == NULL) {
-        printf("malloc failed\r\n");
-        while (1) {
-        }
-    }
-    *ptr = 100;
+    bsp_led_init();
+    bsp_button_init(NULL);
+    bsp_debug_uart_init(115200U);
+    (void)bsp_cdc_uart_init(NULL);
+    bsp_debug_uart_write((const uint8_t *)g_hello, strlen(g_hello));
     printf("Hello, world!\r\n");
+    flash_status = bsp_w25q64_init();
+    if (flash_status == BSP_W25Q64_OK)
+    {
+        (void)bsp_w25q64_read_jedec_id(&flash_jedec_id);
+        printf("W25Q64 JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
+    }
+    else
+    {
+        printf("W25Q64 init failed: %d\r\n", (int)flash_status);
+    }
     tx_kernel_enter();
 
     while (1)

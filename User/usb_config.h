@@ -34,8 +34,8 @@
 
 // #define CONFIG_USB_DCACHE_ENABLE
 
-/* attribute data into no cache ram */
-#define USB_NOCACHE_RAM_SECTION __attribute__((section(".noncacheable")))
+/* Cortex-M4 target has no data cache; keep USB buffers in normal SRAM/BSS. */
+#define USB_NOCACHE_RAM_SECTION
 
 /* use usb_memcpy default for high performance but cost more flash memory.
  * And, arm libc has a bug that memcpy() may cause data misalignment when the size is not a multiple of 4.

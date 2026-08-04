@@ -53,6 +53,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE bsp)
 
 set(THREADX_ARCH "cortex_m4")        # 根据实际MCU架构调整
 set(THREADX_TOOLCHAIN "gnu")         # 根据实际工具链调整
+set(TX_USER_FILE "${CMAKE_SOURCE_DIR}/User/tx_user.h")
 add_subdirectory(third/threadx)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE threadx)
 
@@ -60,25 +61,21 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE threadx)
 set(CONFIG_CHERRYUSB_OSAL "threadx")
 
 # 添加源文件
-file(GLOB DAP_SOURCE
-        "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Source/*.c"
-)
-
-# 添加源文件
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    ${DAP_SOURCE}
     ${CMAKE_SOURCE_DIR}/User/main.c
     ${CMAKE_SOURCE_DIR}/User/apm32f4xx_int.c
     ${CMAKE_SOURCE_DIR}/User/dap_main.c
+    ${CMAKE_SOURCE_DIR}/User/dap_transport.c
+    ${CMAKE_SOURCE_DIR}/User/display_port.c
     ${CMAKE_SOURCE_DIR}/User/user_usb_init.c
+    ${CMAKE_SOURCE_DIR}/drivers/display/st7789.c
 )
 
-# 添加启动文件
-file(GLOB STARTUP_FILES
-        "${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/startup_apm32f40x.S"
-        ${CMAKE_SOURCE_DIR}/User/tx_initialize_low_level.S
+# APM32F407 vector table and ThreadX low-level initialization.
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/startup_apm32f40x.S
+    ${CMAKE_SOURCE_DIR}/User/tx_initialize_low_level.S
 )
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE ${STARTUP_FILES})
 
 # 添加包含目录
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -91,10 +88,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/msc"
     "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/hid"
     "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryRB"
+    "${CMAKE_CURRENT_SOURCE_DIR}/drivers/display"
 )
 
 # 设置链接脚本（项目特定）
-set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/APM32F4xxxG_FLASH.ld")
+set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/Libraries/Device/Geehy/APM32F4xx/Source/gcc/APM32F4xxxE_FLASH.ld")
+set_property(TARGET ${CMAKE_PROJECT_NAME} APPEND PROPERTY LINK_DEPENDS ${LINKER_SCRIPT})
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     -T ${LINKER_SCRIPT}
     -Wl,-Map=${CMAKE_PROJECT_NAME}.map

@@ -3,24 +3,26 @@
 
 #include "usbd_core.h"
 #include "usbd_cdc.h"
+#include "usbd_hid.h"
 #include "usbd_msc.h"
 #include "chry_ringbuffer.h"
 #include "DAP_config.h"
 #include "DAP.h"
 
-#define HID_OUT_EP      0x81
+#define DAP_IN_EP  0x81
+#define DAP_OUT_EP 0x01
 
-#define DAP_IN_EP  0x82
-#define DAP_OUT_EP 0x02
+#define CDC_IN_EP  0x82
+#define CDC_OUT_EP 0x02
+#define CDC_INT_EP 0x83
 
-#define CDC_IN_EP  0x83
-#define CDC_OUT_EP 0x03
-#define CDC_INT_EP 0x84
+#define HID_IN_EP  0x84
+#define HID_OUT_EP 0x04
 
 #define MSC_IN_EP  0x86
 #define MSC_OUT_EP 0x07
 
-//#define CONFIG_DAP_HID
+#define CONFIG_DAP_HID 1
 
 
 #define USBD_VID           0x0D28
@@ -31,11 +33,12 @@
 #define CMSIS_DAP_INTERFACE_SIZE (9 + 7 + 7)
 
 #ifdef CONFIG_DAP_HID
-#define HID_PACKET_SIZE             512
+#define HID_PACKET_SIZE             64
 #define CONFIG_HID_DESCRIPTOR_LEN   (9 + 9 + 7 + 7)
 #define CONFIG_HID_INTF_NUM         1
-#define HID_CUSTOM_REPORT_DESC_SIZE 53
-#define HIDRAW_INTERVAL             4
+#define HID_INTF_NUM                3
+#define CMSIS_DAP_HID_REPORT_DESC_SIZE 27
+#define HIDRAW_INTERVAL             1
 #else
 #define CONFIG_HID_DESCRIPTOR_LEN   0
 #define CONFIG_HID_INTF_NUM         0
@@ -86,9 +89,17 @@
                                USBD_WEBUSB_DESC_LEN * USBD_WEBUSB_ENABLE + \
                                USBD_WINUSB_DESC_LEN * USBD_WINUSB_ENABLE)
 
-#define CONFIG_UARTRX_RINGBUF_SIZE (8 * 1024)
 #define CONFIG_USBRX_RINGBUF_SIZE  (8 * 1024)
 
+enum usb_string_index {
+    USB_STRING_LANGID = 0,
+    USB_STRING_MANUFACTURER,
+    USB_STRING_PRODUCT,
+    USB_STRING_SERIAL_NUMBER,
+    USB_STRING_WEBUSB,
+    USB_STRING_CMSIS_DAP_V2,
+    USB_STRING_CMSIS_DAP_V1,
+};
 
 #ifdef CONFIG_DAP_HID
 #define HID_DESC() \
@@ -101,7 +112,7 @@
     0x03,                          /* bInterfaceClass: HID */ \
     0x01,                          /* bInterfaceSubClass : 1=BOOT, 0=no boot */ \
     0x00,                          /* nInterfaceProtocol : 0=none, 1=keyboard, 2=mouse */ \
-    0,                             /* iInterface: Index of string descriptor */ \
+    USB_STRING_CMSIS_DAP_V1,       /* iInterface: Index of string descriptor */ \
     /******************** Descriptor of Custom HID ********************/ \
     0x09,                    /* bLength: HID Descriptor size */ \
     HID_DESCRIPTOR_TYPE_HID, /* bDescriptorType: HID */ \
@@ -110,7 +121,7 @@
     0x00,                        /* bCountryCode: Hardware target country */ \
     0x01,                        /* bNumDescriptors: Number of HID class descriptors to follow */ \
     0x22,                        /* bDescriptorType */ \
-    HID_CUSTOM_REPORT_DESC_SIZE, /* wItemLength: Total length of Report descriptor */ \
+    CMSIS_DAP_HID_REPORT_DESC_SIZE, /* wItemLength: Total length of Report descriptor */ \
     0x00, \
     /******************** Descriptor of Custom in endpoint ********************/ \
     0x07,                         /* bLength: Endpoint Descriptor size */ \
@@ -130,13 +141,7 @@
 extern struct usbd_endpoint hid_custom_in_ep;
 extern struct usbd_endpoint hid_custom_out_ep;
 
-extern const uint8_t hid_custom_report_desc[HID_CUSTOM_REPORT_DESC_SIZE];
-
-extern uint8_t HID_read_buffer[];
-extern uint8_t HID_write_buffer[];
-
-void HID_Handle();
-
+extern const uint8_t cmsis_dap_hid_report_desc[CMSIS_DAP_HID_REPORT_DESC_SIZE];
 
 #endif
 
@@ -145,7 +150,6 @@ extern "C"
 {
 #endif
 
-extern USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t uartrx_ringbuffer[CONFIG_UARTRX_RINGBUF_SIZE];
 extern USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usbrx_ringbuffer[CONFIG_USBRX_RINGBUF_SIZE];
 extern USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_tmpbuffer[DAP_PACKET_SIZE];
 
@@ -164,14 +168,10 @@ extern struct usbd_endpoint dap_out_ep;
 extern struct usbd_endpoint dap_in_ep;
 extern struct usbd_endpoint cdc_out_ep;
 extern struct usbd_endpoint cdc_in_ep;
-extern struct usbd_endpoint hid_int_ep;
-
-extern chry_ringbuffer_t g_uartrx;
 extern chry_ringbuffer_t g_usbrx;
 
 __STATIC_INLINE void chry_dap_init(uint8_t busid, uint32_t reg_base)
 {
-    chry_ringbuffer_init(&g_uartrx, uartrx_ringbuffer, CONFIG_UARTRX_RINGBUF_SIZE);
     chry_ringbuffer_init(&g_usbrx, usbrx_ringbuffer, CONFIG_USBRX_RINGBUF_SIZE);
 
     DAP_Setup();
@@ -191,7 +191,7 @@ __STATIC_INLINE void chry_dap_init(uint8_t busid, uint32_t reg_base)
     
 #ifdef CONFIG_DAP_HID
     /*!< hid */
-    usbd_add_interface(0, usbd_hid_init_intf(0, &hid_intf, hid_custom_report_desc, HID_CUSTOM_REPORT_DESC_SIZE));
+    usbd_add_interface(0, usbd_hid_init_intf(0, &hid_intf, cmsis_dap_hid_report_desc, CMSIS_DAP_HID_REPORT_DESC_SIZE));
     usbd_add_endpoint(0, &hid_custom_in_ep);
     usbd_add_endpoint(0, &hid_custom_out_ep);
 #endif
@@ -206,12 +206,6 @@ __STATIC_INLINE void chry_dap_init(uint8_t busid, uint32_t reg_base)
 void chry_dap_handle(void);
 
 void chry_dap_usb2uart_handle(void);
-
-void chry_dap_usb2uart_uart_config_callback(struct cdc_line_coding *line_coding);
-
-void chry_dap_usb2uart_uart_send_bydma(uint8_t *data, uint16_t len);
-
-void chry_dap_usb2uart_uart_send_complete(uint32_t size);
 
 #ifdef __cplusplus
 }

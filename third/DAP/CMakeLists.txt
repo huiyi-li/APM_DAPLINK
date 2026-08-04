@@ -1,11 +1,13 @@
 
-file(GLOB CHERRYUSB_SRC
-        "${CMAKE_CURRENT_SOURCE_DIR}/Source/*.c"
+# CMSIS-DAP is configured for SWD only; JTAG, SWO and DAP-UART are disabled.
+set(DAP_SOURCE
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source/DAP.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source/DAP_vendor.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/Source/SW_DP.c
 )
 
-# 添加源文件到库
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    ${CHERRYUSB_SRC}
+    ${DAP_SOURCE}
 )
 
 # 添加包含目录

@@ -58,6 +58,14 @@ RAM (xrw)       : ORIGIN = _ram_base,    LENGTH = _ram_size
 CCMRAM (xrw)    : ORIGIN = _ccmram_base, LENGTH = _ccmram_size
 }
 
+PHDRS
+{
+  flash PT_LOAD FLAGS(5);  /* Read + execute. */
+  data  PT_LOAD FLAGS(6);  /* Read + write. */
+  ccm   PT_LOAD FLAGS(6);  /* Read + write. */
+  ram   PT_LOAD FLAGS(6);  /* Read + write. */
+}
+
 SECTIONS
 {
   .apm32_isr_vector :
@@ -65,7 +73,7 @@ SECTIONS
     . = ALIGN(4);
     KEEP(*(.apm32_isr_vector))
     . = ALIGN(4);
-  } >FLASH
+  } >FLASH :flash
 
   .text :
   {
@@ -81,7 +89,7 @@ SECTIONS
 
     . = ALIGN(4);
     _etext = .;
-  } >FLASH
+  } >FLASH :flash
 
   .rodata :
   {
@@ -89,35 +97,35 @@ SECTIONS
     *(.rodata)
     *(.rodata*)
     . = ALIGN(4);
-  } >FLASH
+  } >FLASH :flash
 
-  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+  .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH :flash
   .ARM : {
     __exidx_start = .;
     *(.ARM.exidx*)
     __exidx_end = .;
-  } >FLASH
+  } >FLASH :flash
 
   .preinit_array     :
   {
     PROVIDE_HIDDEN (__preinit_array_start = .);
     KEEP (*(.preinit_array*))
     PROVIDE_HIDDEN (__preinit_array_end = .);
-  } >FLASH
+  } >FLASH :flash
   .init_array :
   {
     PROVIDE_HIDDEN (__init_array_start = .);
     KEEP (*(SORT(.init_array.*)))
     KEEP (*(.init_array*))
     PROVIDE_HIDDEN (__init_array_end = .);
-  } >FLASH
+  } >FLASH :flash
   .fini_array :
   {
     PROVIDE_HIDDEN (__fini_array_start = .);
     KEEP (*(SORT(.fini_array.*)))
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
-  } >FLASH
+  } >FLASH :flash
 
   _start_address_init_data = LOADADDR(.data);
 
@@ -130,7 +138,7 @@ SECTIONS
 
     . = ALIGN(4);
     _end_address_data = .;
-  } >RAM AT> FLASH
+  } >RAM AT> FLASH :data
 
   _siccmram = LOADADDR(.ccmram);
 
@@ -143,7 +151,7 @@ SECTIONS
     
     . = ALIGN(4);
     _eccmram = .;
-  } >CCMRAM AT> FLASH
+  } >CCMRAM AT> FLASH :ccm
   
   . = ALIGN(4);
   .bss :
@@ -158,7 +166,10 @@ SECTIONS
     . = ALIGN(4);
     _end_address_bss = .;
     __bss_end__ = _end_address_bss;
-  } >RAM
+  } >RAM :ram
+
+  /* First free SRAM address passed to tx_application_define. */
+  __RAM_segment_used_end__ = _end_address_bss;
 
   ._user_heap_stack :
   {
@@ -168,7 +179,7 @@ SECTIONS
     . = . + _heap_size;
     . = . + _stack_size;
     . = ALIGN(8);
-  } >RAM
+  } >RAM :ram
 
   /DISCARD/ :
   {
@@ -177,7 +188,7 @@ SECTIONS
     libgcc.a ( * )
   }
 
-  .ARM.attributes 0 : { *(.ARM.attributes) }
+  .ARM.attributes 0 : { *(.ARM.attributes) } :NONE
 }
 
 

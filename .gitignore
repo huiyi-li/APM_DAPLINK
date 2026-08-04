@@ -16,7 +16,6 @@ SVD
 .clangd
 compile_commands.json
 CMakeCache.txt
-CMakeLists.txt
 *.scvd
 *.hex
 *.elf

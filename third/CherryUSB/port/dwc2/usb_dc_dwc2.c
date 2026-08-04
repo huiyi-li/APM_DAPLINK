@@ -321,7 +321,10 @@ static void dwc2_set_txfifo(uint8_t busid, uint8_t fifo, uint16_t size)
         USB_OTG_GLB->DIEPTXF[fifo - 1U] = ((uint32_t)size << 16) | tx_offset;
     }
 
-    USB_LOG_INFO("fifo%d size:%04x, offset:%04x\r\n", fifo, size, tx_offset);
+    USB_LOG_INFO("fifo%d size:%04x, offset:%04lx\r\n",
+                 fifo,
+                 size,
+                 (unsigned long)tx_offset);
 }
 
 static uint8_t dwc2_get_devspeed(uint8_t busid)
@@ -548,7 +551,10 @@ int usb_dc_init(uint8_t busid)
     USB_LOG_INFO("GHWCFG4:%08x\r\n", (unsigned int)USB_OTG_GLB->GHWCFG4);
 
     USB_LOG_INFO("dwc2 fsphy type:%d, hsphy type:%d, dma support:%d\r\n", fsphy_type, hsphy_type, dma_support);
-    USB_LOG_INFO("dwc2 has %d endpoints and dfifo depth(32-bit words) is %d, default config: %d endpoints\r\n", endpoints, (USB_OTG_GLB->GHWCFG3 >> 16), CONFIG_USBDEV_EP_NUM);
+    USB_LOG_INFO("dwc2 has %d endpoints and dfifo depth(32-bit words) is %lu, default config: %d endpoints\r\n",
+                 endpoints,
+                 (unsigned long)(USB_OTG_GLB->GHWCFG3 >> 16),
+                 CONFIG_USBDEV_EP_NUM);
     USB_LOG_INFO("=================================\r\n");
 
     USB_ASSERT_MSG(endpoints >= CONFIG_USBDEV_EP_NUM, "dwc2 has less endpoints than config, please check");
@@ -1006,7 +1012,10 @@ int usbd_ep_start_read(uint8_t busid, const uint8_t ep, uint8_t *data, uint32_t 
 
 void USBD_IRQHandler(uint8_t busid)
 {
-    uint32_t gint_status, temp, ep_idx, ep_intr, epint, read_count;
+    uint32_t gint_status, temp, ep_idx, ep_intr, epint;
+#ifndef CONFIG_USB_DWC2_DMA_ENABLE
+    uint32_t read_count;
+#endif
     gint_status = dwc2_get_glb_intstatus(busid);
 
     if ((USB_OTG_GLB->GINTSTS & 0x1U) == USB_OTG_MODE_DEVICE) {

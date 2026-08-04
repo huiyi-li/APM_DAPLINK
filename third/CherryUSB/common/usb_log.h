@@ -42,33 +42,33 @@
 #define _USB_DBG_LOG_X_END
 #endif
 
-#define usb_dbg_log_line(lvl, color_n, fmt, ...) \
-    do {                                         \
-        _USB_DBG_LOG_HDR(lvl, color_n);          \
-        CONFIG_USB_PRINTF(fmt, ##__VA_ARGS__);              \
-        _USB_DBG_LOG_X_END;                      \
+#define usb_dbg_log_line(lvl, color_n, ...) \
+    do {                                    \
+        _USB_DBG_LOG_HDR(lvl, color_n);     \
+        CONFIG_USB_PRINTF(__VA_ARGS__);     \
+        _USB_DBG_LOG_X_END;                 \
     } while (0)
 
 #if (CONFIG_USB_DBG_LEVEL >= USB_DBG_LOG)
-#define USB_LOG_DBG(fmt, ...) usb_dbg_log_line("D", 0, fmt, ##__VA_ARGS__)
+#define USB_LOG_DBG(...) usb_dbg_log_line("D", 0, __VA_ARGS__)
 #else
 #define USB_LOG_DBG(...)  {}
 #endif
 
 #if (CONFIG_USB_DBG_LEVEL >= USB_DBG_INFO)
-#define USB_LOG_INFO(fmt, ...) usb_dbg_log_line("I", 32, fmt, ##__VA_ARGS__)
+#define USB_LOG_INFO(...) usb_dbg_log_line("I", 32, __VA_ARGS__)
 #else
 #define USB_LOG_INFO(...) {}
 #endif
 
 #if (CONFIG_USB_DBG_LEVEL >= USB_DBG_WARNING)
-#define USB_LOG_WRN(fmt, ...) usb_dbg_log_line("W", 33, fmt, ##__VA_ARGS__)
+#define USB_LOG_WRN(...) usb_dbg_log_line("W", 33, __VA_ARGS__)
 #else
 #define USB_LOG_WRN(...) {}
 #endif
 
 #if (CONFIG_USB_DBG_LEVEL >= USB_DBG_ERROR)
-#define USB_LOG_ERR(fmt, ...) usb_dbg_log_line("E", 31, fmt, ##__VA_ARGS__)
+#define USB_LOG_ERR(...) usb_dbg_log_line("E", 31, __VA_ARGS__)
 #else
 #define USB_LOG_ERR(...) {}
 #endif
@@ -85,11 +85,12 @@
         }                                                                        \
     } while (false)
 
-#define USB_ASSERT_MSG(f, fmt, ...)                                              \
+#define USB_ASSERT_MSG(f, ...)                                                   \
     do {                                                                         \
         if (!(f)) {                                                              \
             USB_LOG_ERR("ASSERT FAIL [%s] @ %s:%d\r\n", #f, __FILE__, __LINE__); \
-            USB_LOG_ERR(fmt "\r\n", ##__VA_ARGS__);                              \
+            USB_LOG_ERR(__VA_ARGS__);                                            \
+            USB_LOG_RAW("\r\n");                                                \
             while (1) {                                                          \
             }                                                                    \
         }                                                                        \

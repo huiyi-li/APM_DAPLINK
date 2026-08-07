@@ -26,9 +26,7 @@ set(FPU_ABI "hard")
 
 # 添加编译定义
 add_compile_definitions(
-    USE_HAL_DRIVER
     APM32F40X
-    DEBUG
 )
 
 # 创建可执行文件（必须先定义目标！）
@@ -65,7 +63,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/User/main.c
     ${CMAKE_SOURCE_DIR}/User/apm32f4xx_int.c
     ${CMAKE_SOURCE_DIR}/User/dap_main.c
-    ${CMAKE_SOURCE_DIR}/User/dap_transport.c
     ${CMAKE_SOURCE_DIR}/User/display_port.c
     ${CMAKE_SOURCE_DIR}/User/user_usb_init.c
     ${CMAKE_SOURCE_DIR}/drivers/display/st7789.c

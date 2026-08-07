@@ -20,6 +20,7 @@ target_sources(${LIB_NAME} PRIVATE
     src/bsp_lcd_bus.c
     src/bsp_printf.c
     src/bsp_sysclk.c
+    src/bsp_uart1.c
     src/bsp_w25qxx.c
 )
 

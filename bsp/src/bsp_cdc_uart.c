@@ -1,9 +1,11 @@
 #include "bsp_cdc_uart.h"
 #include "chry_ringbuffer.h"
-#include "dap_main.h"
 #include "apm32f4xx_misc.h"
 #include "apm32f4xx_usart.h"
 #include "board.h"
+
+/* CDC1 usb2uart ring buffer, defined in User/dap_main.c */
+extern chry_ringbuffer_t g_uartrx1;
 
 #define CDC_UART_BUFFER_SIZE 1024U
 #define CDC_UART_BUFFER_MASK (CDC_UART_BUFFER_SIZE - 1U)

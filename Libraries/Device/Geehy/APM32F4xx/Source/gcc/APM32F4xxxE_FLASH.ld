@@ -168,9 +168,6 @@ SECTIONS
     __bss_end__ = _end_address_bss;
   } >RAM :ram
 
-  /* First free SRAM address passed to tx_application_define. */
-  __RAM_segment_used_end__ = _end_address_bss;
-
   ._user_heap_stack :
   {
     . = ALIGN(8);
@@ -180,6 +177,11 @@ SECTIONS
     . = . + _stack_size;
     . = ALIGN(8);
   } >RAM :ram
+
+  /* First free SRAM address passed to tx_application_define.
+     Placed after the heap/stack reservation so the ThreadX byte pool
+     (thread stacks) does not overlap the newlib heap/stack region. */
+  __RAM_segment_used_end__ = .;
 
   /DISCARD/ :
   {

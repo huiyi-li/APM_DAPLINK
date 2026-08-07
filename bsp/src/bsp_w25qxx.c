@@ -36,6 +36,7 @@ typedef struct
 
 static bool s_bus_ready;
 static bool s_initialized;
+volatile uint32_t g_w25qxx_raw_id;
 static uint8_t s_sector_buffer[BSP_W25Q64_SECTOR_SIZE];
 static uint8_t s_verify_buffer[BSP_W25Q64_PAGE_SIZE];
 
@@ -349,6 +350,7 @@ BSP_W25Q64_STATUS_T bsp_w25q64_read_jedec_id(uint32_t *jedec_id)
         *jedec_id = ((uint32_t)id[0] << 16U) |
                     ((uint32_t)id[1] << 8U) |
                     id[2];
+        g_w25qxx_raw_id = *jedec_id;
     }
     return status;
 }

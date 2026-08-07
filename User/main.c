@@ -39,6 +39,7 @@
 #include "bsp_led.h"
 #include "bsp_button.h"
 #include "bsp_cdc_uart.h"
+#include "bsp_uart1.h"
 #include "bsp_w25qxx.h"
 #include "display_port.h"
 
@@ -165,6 +166,7 @@ int main(void)
     bsp_button_init(NULL);
     bsp_debug_uart_init(115200U);
     (void)bsp_cdc_uart_init(NULL);
+    bsp_uart1_init(115200U);
     bsp_debug_uart_write((const uint8_t *)g_hello, strlen(g_hello));
     printf("Hello, world!\r\n");
     flash_status = bsp_w25q64_init();

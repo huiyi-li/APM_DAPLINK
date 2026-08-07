@@ -102,6 +102,7 @@ void USART2_IRQHandler(void)
     {
         USART_ClearStatusFlag(USART2, USART_FLAG_RXBNE);
         data = USART2->DATA_B.DATA;
-        // chry_ringbuffer_write_byte(&g_uartrx,data);
+        /* Bridge CDC0 (COM7) to USART2: forward to the CDC0 usb2uart ring buffer. */
+        chry_ringbuffer_write_byte(&g_uartrx, data);
     }
 }

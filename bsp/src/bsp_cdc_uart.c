@@ -123,7 +123,7 @@ bool bsp_cdc_uart_init(const BSP_CDC_UART_CONFIG_T *config)
     configure_pins();
     s_rx_overflow_count = 0U;
     s_error_count = 0U;
-    NVIC_EnableIRQRequest(USART3_IRQn, 5U, 0U);
+    NVIC_EnableIRQRequest(USART3_IRQn, 0U, 0U);
     return bsp_cdc_uart_configure(selected);
 }
 
@@ -164,18 +164,18 @@ size_t bsp_cdc_uart_write(const uint8_t *data, size_t length)
 
     while (written < length)
     {
-        const uint16_t next = ring_next(s_tx_head);
-        if (next == s_tx_tail)
+        /* Blocking, interrupt-free transmit. The TXBE interrupt path
+         * competes with the RXBNE interrupt (same USART vector, no
+         * preemption between them): while the handler is busy pushing TX
+         * bytes, the single-byte RX register overruns on the loopback path
+         * and bytes are lost. Sending from the thread context leaves the
+         * USART3 interrupt free to service RXBNE immediately. */
+        while ((USART3->STS & USART_FLAG_TXBE) == 0U)
         {
-            break;
+            /* wait for transmit register empty */
         }
-        s_tx_buffer[s_tx_head] = data[written++];
-        s_tx_head = next;
-    }
-
-    if (written != 0U)
-    {
-        USART_EnableInterrupt(USART3, USART_INT_TXBE);
+        USART_TxData(USART3, data[written]);
+        written++;
     }
     return written;
 }
@@ -223,21 +223,26 @@ void USART3_IRQHandler(void)
 
     if ((status & USART_FLAG_RXBNE) != 0U)
     {
-        const uint8_t data = (uint8_t)USART_RxData(USART3);
-        const uint16_t next = ring_next(s_rx_head);
+        /* Drain the receive register in a loop so bytes received while
+         * this handler was delayed are not lost (overrun). */
+        do
+        {
+            const uint8_t data = (uint8_t)USART_RxData(USART3);
+            const uint16_t next = ring_next(s_rx_head);
 
-        if (next == s_rx_tail)
-        {
-            s_rx_overflow_count++;
-        }
-        else
-        {
-            s_rx_buffer[s_rx_head] = data;
-            s_rx_head = next;
-        }
-        /* Bridge CDC0 (COM7) to USART3: forward the byte to the DAP
-         * usb2uart ring buffer so it is sent out on the CDC0 IN endpoint. */
-        chry_ringbuffer_write_byte(&g_uartrx, data);
+            if (next == s_rx_tail)
+            {
+                s_rx_overflow_count++;
+            }
+            else
+            {
+                s_rx_buffer[s_rx_head] = data;
+                s_rx_head = next;
+            }
+            /* Bridge CDC1 (COM8) to USART3: forward the byte to the CDC1
+             * usb2uart ring buffer so it is sent out on the CDC1 IN endpoint. */
+            chry_ringbuffer_write_byte(&g_uartrx1, data);
+        } while ((USART3->STS & USART_FLAG_RXBNE) != 0U);
     }
 
     if ((status & (USART_FLAG_OVRE | USART_FLAG_NE |
@@ -252,6 +257,10 @@ void USART3_IRQHandler(void)
 
     if (USART_ReadIntFlag(USART3, USART_INT_TXBE) != RESET)
     {
+        /* Transmit one byte per TXBE event. Transmitting several bytes in a
+         * tight loop here would overrun the single-byte RX buffer on the
+         * loopback path (TX mirrored into RX) because this handler cannot
+         * drain RX while it is busy pushing TX. */
         if (s_tx_tail != s_tx_head)
         {
             USART_TxData(USART3, s_tx_buffer[s_tx_tail]);

@@ -17,6 +17,10 @@
 #define CDC_OUT_EP 0x03
 #define CDC_INT_EP 0x84
 
+#define CDC1_IN_EP  0x85
+#define CDC1_OUT_EP 0x05
+#define CDC1_INT_EP 0x86
+
 #define MSC_IN_EP  0x86
 #define MSC_OUT_EP 0x07
 
@@ -158,21 +162,41 @@ extern struct usbd_interface dap_intf;
 extern struct usbd_interface intf1;
 extern struct usbd_interface intf2;
 extern struct usbd_interface intf3;
+extern struct usbd_interface intf4;
+extern struct usbd_interface intf5;
+extern struct usbd_interface intf6;
 extern struct usbd_interface hid_intf;
 
 extern struct usbd_endpoint dap_out_ep;
 extern struct usbd_endpoint dap_in_ep;
 extern struct usbd_endpoint cdc_out_ep;
 extern struct usbd_endpoint cdc_in_ep;
+extern struct usbd_endpoint cdc_out_ep1;
+extern struct usbd_endpoint cdc_in_ep1;
 extern struct usbd_endpoint hid_int_ep;
 
 extern chry_ringbuffer_t g_uartrx;
+extern chry_ringbuffer_t g_uartrx1;
 extern chry_ringbuffer_t g_usbrx;
+extern chry_ringbuffer_t g_usbrx1;
+extern volatile struct cdc_line_coding g_cdc1_lincoding;
+extern USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t uartrx_ringbuffer1[CONFIG_UARTRX_RINGBUF_SIZE];
+extern USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usbrx_ringbuffer1[CONFIG_USBRX_RINGBUF_SIZE];
+
+void usbd_cdc_acm_bulk_out1(uint8_t busid, uint8_t ep, uint32_t nbytes);
+void usbd_cdc_acm_bulk_in1(uint8_t busid, uint8_t ep, uint32_t nbytes);
+void chry_dap_usb2uart_uart_config_callback1(struct cdc_line_coding *line_coding);
+void chry_dap_usb2uart_uart_send_bydma1(uint8_t *data, uint16_t len);
+void chry_dap_usb2uart_uart_send_complete1(uint32_t size);
 
 __STATIC_INLINE void chry_dap_init(uint8_t busid, uint32_t reg_base)
 {
     chry_ringbuffer_init(&g_uartrx, uartrx_ringbuffer, CONFIG_UARTRX_RINGBUF_SIZE);
     chry_ringbuffer_init(&g_usbrx, usbrx_ringbuffer, CONFIG_USBRX_RINGBUF_SIZE);
+
+    /* Second CDC (CDC1): USART3 (bsp_cdc_uart) bridge. */
+    chry_ringbuffer_init(&g_uartrx1, uartrx_ringbuffer1, CONFIG_UARTRX_RINGBUF_SIZE);
+    chry_ringbuffer_init(&g_usbrx1, usbrx_ringbuffer1, CONFIG_USBRX_RINGBUF_SIZE);
 
     DAP_Setup();
 
@@ -188,6 +212,12 @@ __STATIC_INLINE void chry_dap_init(uint8_t busid, uint32_t reg_base)
     usbd_add_interface(0, usbd_cdc_acm_init_intf(0, &intf2));
     usbd_add_endpoint(0, &cdc_out_ep);
     usbd_add_endpoint(0, &cdc_in_ep);
+
+    /*!< cdc acm 2 (CDC1 -> USART3) */
+    usbd_add_interface(0, usbd_cdc_acm_init_intf(0, &intf3));
+    usbd_add_interface(0, usbd_cdc_acm_init_intf(0, &intf4));
+    usbd_add_endpoint(0, &cdc_out_ep1);
+    usbd_add_endpoint(0, &cdc_in_ep1);
     
 #ifdef CONFIG_DAP_HID
     /*!< hid */

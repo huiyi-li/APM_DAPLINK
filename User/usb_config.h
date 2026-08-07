@@ -254,7 +254,7 @@
 #endif
 #else
 #ifndef CONFIG_USBDEV_EP_NUM
-#define CONFIG_USBDEV_EP_NUM 6
+#define CONFIG_USBDEV_EP_NUM 7
 #endif
 #endif
 

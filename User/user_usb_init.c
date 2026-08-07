@@ -5,7 +5,6 @@
 #include "apm32f4xx_misc.h"
 #include "apm32f4xx_usb_device.h"
 #include "usb_config.h"
-#include "usbd_core.h"
 #include "usb_dc.h"
 #include "user_usb_init.h"
 
@@ -26,8 +25,6 @@
 void USBD_HardwareInit(uint8_t busid)
 {
     GPIO_Config_T gpioConfig;
-
-    (void)busid;
     
 //    #if defined(CONFIG_USB_FS)
 //        RCM_EnableAPB2PeriphClock(RCM_APB2_PERIPH_SYSCFG);
@@ -79,7 +76,6 @@ void USBD_HardwareInit(uint8_t busid)
         // use hs2
         USB_OTG_HS2->USB_SWITCH_B.usb_switch = BIT_SET;
         USB_OTG_HS2->POWERON_CORE_B.poweron_core = BIT_SET;
-        USB_OTG_HS2->USB_PLL_EN_B.usb_pll_en = BIT_SET;
         USB_OTG_HS2->OTG_SUSPENDM_B.otg_suspendm = BIT_SET;
         USB_OTG_HS2->SW_RREF_I2C_B.sw_rref_i2c = 0x05;
 
@@ -104,7 +100,6 @@ void USBD_HardwareInit(uint8_t busid)
  */
 void USBD_HardwareReset(uint8_t busid)
 {
-    (void)busid;
 //    #if defined(CONFIG_USB_FS)
 //        RCM_DisableAHB2PeriphClock(RCM_AHB2_PERIPH_OTG_FS);
 //        
@@ -133,7 +128,6 @@ void usb_dc_low_level_deinit(uint8_t busid)
 
 uint32_t usbd_get_dwc2_gccfg_conf(uint32_t reg_base) 
 {
-    (void)reg_base;
     return ((1 << 16) | (1 << 21));
 }
 
@@ -154,7 +148,6 @@ void OTG_HS1_IRQHandler(void)
 
 
 void usb_event_handler(uint8_t busid, uint8_t event) {
-    (void)busid;
     switch (event)
     {
         case USBD_USER_RESET:

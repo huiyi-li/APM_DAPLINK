@@ -1,6 +1,7 @@
 #include "bsp_sysclk.h"
 #include "apm32f4xx_rcm.h"
 #include "apm32f4xx_fmc.h"
+#include "system_apm32f4xx.h"
 
 /*!
  * @brief     Configures the System clock frequency, HCLK, PCLK2 and PCLK1
@@ -36,6 +37,13 @@ void bsp_sysclk_init(void)
         while(RCM_ReadSYSCLKSource() != RCM_SYSCLK_SEL_PLL)
         {
         }
+
+        /* PLL1: HSE 24MHz / 24 * 336 / 2 = 168MHz system clock.
+         * Set explicitly because the ARMCC scatter-load copy of RW data
+         * (including SystemCoreClock's initializer) is not present in the
+         * programmed flash image on this board, so the variable would
+         * otherwise contain 0xFF. */
+        SystemCoreClock = 168000000U;
     }
     else
     {

@@ -1,0 +1,13 @@
+#ifndef __BSP_UART1_H__
+#define __BSP_UART1_H__
+
+#include "apm32f4xx_rcm.h"
+#include "apm32f4xx_fmc.h"
+#include "apm32f4xx_gpio.h"
+#include "apm32f4xx_usart.h"
+
+void bsp_uart1_init(uint32_t baud);
+void bsp_uart1_send(uint8_t *data, uint32_t len);
+void Usart1Config(uint32_t baud, uint8_t parity, uint8_t data_bit, uint8_t stop_bit);
+
+#endif

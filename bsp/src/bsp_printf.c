@@ -57,6 +57,17 @@ size_t bsp_debug_uart_write(const uint8_t *data, size_t length)
     return written;
 }
 
+/* AC6 (armclang) defines __GNUC__ and uses _write; the ARM library printf
+ * path uses fputc. Define both so printf never falls back to the
+ * semihosting (BKPT) implementation. */
+int fputc(int character, FILE *stream)
+{
+    const uint8_t data = (uint8_t)character;
+    (void)stream;
+    (void)bsp_debug_uart_write(&data, 1U);
+    return character;
+}
+
 #if defined(__GNUC__)
 int _write(int file, char *data, int length)
 {
@@ -66,13 +77,5 @@ int _write(int file, char *data, int length)
         return -1;
     }
     return (int)bsp_debug_uart_write((const uint8_t *)data, (size_t)length);
-}
-#else
-int fputc(int character, FILE *stream)
-{
-    const uint8_t data = (uint8_t)character;
-    (void)stream;
-    (void)bsp_debug_uart_write(&data, 1U);
-    return character;
 }
 #endif

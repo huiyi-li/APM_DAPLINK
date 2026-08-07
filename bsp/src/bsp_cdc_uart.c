@@ -1,5 +1,6 @@
 #include "bsp_cdc_uart.h"
-
+#include "chry_ringbuffer.h"
+#include "dap_main.h"
 #include "apm32f4xx_misc.h"
 #include "apm32f4xx_usart.h"
 #include "board.h"
@@ -234,6 +235,9 @@ void USART3_IRQHandler(void)
             s_rx_buffer[s_rx_head] = data;
             s_rx_head = next;
         }
+        /* Bridge CDC0 (COM7) to USART3: forward the byte to the DAP
+         * usb2uart ring buffer so it is sent out on the CDC0 IN endpoint. */
+        chry_ringbuffer_write_byte(&g_uartrx, data);
     }
 
     if ((status & (USART_FLAG_OVRE | USART_FLAG_NE |

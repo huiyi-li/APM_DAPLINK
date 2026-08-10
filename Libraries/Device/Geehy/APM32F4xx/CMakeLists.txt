@@ -14,6 +14,10 @@ file(GLOB SOURCES
     "Source/*.S"
 )
 
+# Match the Keil project: use the application-owned system clock source
+# instead of the SDK example copy from this device library.
+list(FILTER SOURCES EXCLUDE REGEX ".*/system_apm32f4xx\\.c$")
+
 # 添加源文件到库
 target_sources(${LIB_NAME} PRIVATE
     ${SOURCES}

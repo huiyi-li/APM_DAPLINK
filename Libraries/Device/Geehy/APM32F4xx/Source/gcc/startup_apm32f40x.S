@@ -89,7 +89,9 @@ L_loop1:
   cmp r2, r4
   bcc L_loop2
 
-  bl  SystemInit
+  /* Keil MDK startup for this project intentionally does not call
+   * SystemInit(); clock and vector setup are performed by bsp_sysclk_init()
+   * from main().  Keep GCC startup behavior identical. */
   bl __libc_init_array
   bl  main
   bx  lr

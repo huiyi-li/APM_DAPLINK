@@ -61,6 +61,7 @@ set(CONFIG_CHERRYUSB_OSAL "threadx")
 # 添加源文件
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/User/main.c
+    ${CMAKE_SOURCE_DIR}/User/system_apm32f4xx.c
     ${CMAKE_SOURCE_DIR}/User/apm32f4xx_int.c
     ${CMAKE_SOURCE_DIR}/User/dap_main.c
     ${CMAKE_SOURCE_DIR}/User/display_port.c

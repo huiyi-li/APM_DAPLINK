@@ -60,6 +60,7 @@
 
 TX_THREAD               thread_0;
 TX_THREAD               ThreadInit;
+TX_THREAD               thread_lcd_test;
 TX_THREAD               thread_2;
 TX_THREAD               thread_3;
 TX_THREAD               thread_4;
@@ -74,11 +75,13 @@ TX_BYTE_POOL            byte_pool_0;
 TX_BLOCK_POOL           block_pool_0;
 
 #define DEMO_STACK_SIZE         1024
-#define DEMO_BYTE_POOL_SIZE     10240
+#define DEMO_BYTE_POOL_SIZE     12288
 #define DEMO_BLOCK_POOL_SIZE    100
 #define DEMO_QUEUE_SIZE         100
 
-void    thread_0_entry(ULONG thread_input)
+#define LCD_TEST_STACK_SIZE     1024
+
+void thread_0_entry(ULONG thread_input)
 {
     (void)thread_input;
     while(1)
@@ -87,6 +90,48 @@ void    thread_0_entry(ULONG thread_input)
 
         bsp_button_process((uint32_t)now);
         tx_thread_sleep(10U);
+    }
+}
+
+static const uint16_t lcd_test_colors[] = {
+    DISPLAY_COLOR_RED,
+    DISPLAY_COLOR_GREEN,
+    DISPLAY_COLOR_BLUE,
+    DISPLAY_COLOR_WHITE,
+    DISPLAY_COLOR_BLACK,
+};
+
+void thread_lcd_test_entry(ULONG thread_input)
+{
+    static const DISPLAY_AREA_T full_screen = {
+        0U, 0U, DISPLAY_PORT_WIDTH - 1U, DISPLAY_PORT_HEIGHT - 1U
+    };
+    uint32_t color_index = 0U;
+    DISPLAY_PORT_STATUS_T status;
+
+    (void)thread_input;
+
+    /* Wait for the display driver to be initialized by InitThread. */
+    while (!display_port_is_ready())
+    {
+        tx_thread_sleep(100U);
+    }
+    printf("[LCD] test start\r\n");
+
+    while (1)
+    {
+        status = display_port_fill(&full_screen, lcd_test_colors[color_index]);
+        printf("[LCD] fill #%lu color=0x%04X status=%d\r\n",
+               (unsigned long)color_index,
+               (unsigned int)lcd_test_colors[color_index],
+               (int)status);
+
+        color_index++;
+        if (color_index >= (sizeof(lcd_test_colors) / sizeof(lcd_test_colors[0])))
+        {
+            color_index = 0U;
+        }
+        tx_thread_sleep(1000U);
     }
 }
 
@@ -120,6 +165,7 @@ void tx_application_define(void *first_unused_memory)
 {
     CHAR    *pointer = TX_NULL;
     CHAR    *InitTaskPtr = TX_NULL;
+    CHAR    *LcdTestTaskPtr = TX_NULL;
 
 
     /* Create a byte memory pool from which to allocate the thread stacks.  */
@@ -131,6 +177,7 @@ void tx_application_define(void *first_unused_memory)
     /* Allocate the stack for thread 0.  */
     tx_byte_allocate(&byte_pool_0, (VOID **) &pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
     tx_byte_allocate(&byte_pool_0, (VOID **) &InitTaskPtr, 2048, TX_NO_WAIT);
+    tx_byte_allocate(&byte_pool_0, (VOID **) &LcdTestTaskPtr, LCD_TEST_STACK_SIZE, TX_NO_WAIT);
 
     /* Create the main thread.  */
     tx_thread_create(&thread_0, "thread 0", thread_0_entry, 0,
@@ -140,6 +187,11 @@ void tx_application_define(void *first_unused_memory)
      tx_thread_create(&ThreadInit, "thread Init", InitThread, 0,
             InitTaskPtr, 2048,
             6, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    /* 1s periodic ST7789 background color fill test. */
+    tx_thread_create(&thread_lcd_test, "thread lcd test", thread_lcd_test_entry, 0,
+            LcdTestTaskPtr, LCD_TEST_STACK_SIZE,
+            5, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
 }
 

@@ -16,14 +16,16 @@
 #define BOARD_LED_CDC_PIN_SOURCE        GPIO_PIN_SOURCE_2
 #define BOARD_LED_GPIO_CLOCK            RCM_AHB1_PERIPH_GPIOE
 
-/* User buttons, active low with internal pull-ups. */
-#define BOARD_BUTTON_0_PORT             GPIOE
-#define BOARD_BUTTON_0_PIN              GPIO_PIN_3
-#define BOARD_BUTTON_1_PORT             GPIOE
-#define BOARD_BUTTON_1_PIN              GPIO_PIN_4
-#define BOARD_BUTTON_2_PORT             GPIOE
-#define BOARD_BUTTON_2_PIN              GPIO_PIN_5
-#define BOARD_BUTTON_GPIO_CLOCK         RCM_AHB1_PERIPH_GPIOE
+/* User buttons, floating by default, read HIGH when pressed
+ * (internal pull-downs, active-high polarity). */
+#define BOARD_BUTTON_PORT                GPIOE
+#define BOARD_BUTTON_0_PORT              GPIOE
+#define BOARD_BUTTON_0_PIN               GPIO_PIN_3
+#define BOARD_BUTTON_1_PORT              GPIOE
+#define BOARD_BUTTON_1_PIN               GPIO_PIN_4
+#define BOARD_BUTTON_2_PORT              GPIOE
+#define BOARD_BUTTON_2_PIN               GPIO_PIN_5
+#define BOARD_BUTTON_GPIO_CLOCK          RCM_AHB1_PERIPH_GPIOE
 
 /* W25Q64 on SPI1. */
 #define BOARD_FLASH_CS_PORT             GPIOA

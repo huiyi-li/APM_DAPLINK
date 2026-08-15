@@ -67,6 +67,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/User/display_port.c
     ${CMAKE_SOURCE_DIR}/User/user_usb_init.c
     ${CMAKE_SOURCE_DIR}/drivers/display/st7789.c
+    ${CMAKE_SOURCE_DIR}/drivers/display/lcd_text.c
 )
 
 # APM32F407 vector table and ThreadX low-level initialization.

@@ -1,105 +1,117 @@
 #include "bsp_button.h"
 
-#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "board.h"
 
-#define BSP_BUTTON_EVENT_QUEUE_SIZE 16U
+/*
+ * Board level button implementation built on the portable BUTTON_T
+ * framework. Pins are taken from board.h; every button event is also
+ * logged to the debug UART for debugging.
+ */
 
-typedef struct
-{
-    bool raw_pressed;
-    bool stable_pressed;
-    bool long_press_sent;
-    uint32_t raw_changed_at;
-    uint32_t pressed_at;
-    uint32_t next_repeat_at;
-} BSP_BUTTON_STATE_T;
+static BUTTON_T s_buttons[BSP_BUTTON_COUNT];
+static BSP_BUTTON_EVENT_CB s_app_event_cb;
+static void *s_app_event_user_data;
 
-const BSP_BUTTON_CONFIG_T g_bsp_button_default_config =
-{
+/* Board buttons are floating by default and read HIGH when pressed,
+ * so use internal pull-downs and active-high polarity. */
+static const BUTTON_CONFIG_T s_board_button_config = {
     .debounce_ms = 30U,
     .long_press_ms = 800U,
-    .repeat_delay_ms = 400U,
-    .repeat_interval_ms = 150U,
+    .extra_long_press_ms = 3000U,
+    .multi_click_window_ms = 350U,
+    .active_high = true,
 };
 
-static const uint16_t s_button_pins[BSP_BUTTON_COUNT] =
-{
+static const uint16_t s_button_pins[BSP_BUTTON_COUNT] = {
     [BSP_BUTTON_0] = BOARD_BUTTON_0_PIN,
     [BSP_BUTTON_1] = BOARD_BUTTON_1_PIN,
     [BSP_BUTTON_2] = BOARD_BUTTON_2_PIN,
 };
 
-static BSP_BUTTON_CONFIG_T s_config;
-static BSP_BUTTON_STATE_T s_button_states[BSP_BUTTON_COUNT];
-static BSP_BUTTON_EVENT_T s_event_queue[BSP_BUTTON_EVENT_QUEUE_SIZE];
-static uint8_t s_event_head;
-static uint8_t s_event_tail;
-static uint32_t s_dropped_events;
-
-static bool time_elapsed(uint32_t now, uint32_t start, uint32_t duration)
+static bool bsp_button_read_level(void *context)
 {
-    return (uint32_t)(now - start) >= duration;
+    const BSP_BUTTON_T button = (BSP_BUTTON_T)(uintptr_t)context;
+
+    /* Physical level: true = high. Active-low polarity is handled by
+     * the framework through config.active_high. */
+    return GPIO_ReadInputBit(BOARD_BUTTON_PORT, s_button_pins[button]) == BIT_SET;
 }
 
-static bool time_reached(uint32_t now, uint32_t deadline)
+static const char *event_name(BUTTON_EVENT_T event)
 {
-    return (int32_t)(now - deadline) >= 0;
-}
+    static const char *const names[BUTTON_EVENT_COUNT] = {
+        [BUTTON_EVENT_PRESSED] = "PRESSED",
+        [BUTTON_EVENT_RELEASED] = "RELEASED",
+        [BUTTON_EVENT_CLICKED] = "CLICKED",
+        [BUTTON_EVENT_DOUBLE_CLICKED] = "DOUBLE_CLICK",
+        [BUTTON_EVENT_TRIPLE_CLICKED] = "TRIPLE_CLICK",
+        [BUTTON_EVENT_MULTI_CLICKED] = "MULTI_CLICK",
+        [BUTTON_EVENT_LONG_PRESSED] = "LONG_PRESS",
+        [BUTTON_EVENT_EXTRA_LONG_PRESSED] = "EXTRA_LONG_PRESS",
+    };
 
-static bool read_button(BSP_BUTTON_T button)
-{
-    return GPIO_ReadInputBit(GPIOE, s_button_pins[button]) == 0U;
-}
-
-static void queue_event(BSP_BUTTON_T button,
-                        BSP_BUTTON_EVENT_TYPE_T type,
-                        uint32_t timestamp_ms)
-{
-    const uint8_t next = (uint8_t)((s_event_head + 1U) % BSP_BUTTON_EVENT_QUEUE_SIZE);
-
-    if (next == s_event_tail)
+    if ((unsigned int)event < (unsigned int)BUTTON_EVENT_COUNT)
     {
-        s_dropped_events++;
-        return;
+        return names[event];
+    }
+    return "?";
+}
+
+static void bsp_button_event_cb(void *button,
+                                BUTTON_EVENT_T event,
+                                uint32_t param,
+                                uint32_t now_ms,
+                                void *user_data)
+{
+    const BUTTON_T *btn = (const BUTTON_T *)button;
+    const uintptr_t index = (uintptr_t)btn->user_data;
+
+    (void)now_ms;
+    (void)user_data;
+
+    if ((event == BUTTON_EVENT_MULTI_CLICKED) || (event == BUTTON_EVENT_CLICKED) ||
+        (event == BUTTON_EVENT_DOUBLE_CLICKED) || (event == BUTTON_EVENT_TRIPLE_CLICKED))
+    {
+        printf("[BTN] K%lu %s x%lu\r\n",
+               (unsigned long)index,
+               event_name(event),
+               (unsigned long)param);
+    }
+    else
+    {
+        printf("[BTN] K%lu %s\r\n", (unsigned long)index, event_name(event));
     }
 
-    s_event_queue[s_event_head].button = button;
-    s_event_queue[s_event_head].type = type;
-    s_event_queue[s_event_head].timestamp_ms = timestamp_ms;
-    s_event_head = next;
+    if (s_app_event_cb != NULL)
+    {
+        s_app_event_cb((BSP_BUTTON_T)index, event, param, now_ms, s_app_event_user_data);
+    }
 }
 
-void bsp_button_init(const BSP_BUTTON_CONFIG_T *config)
+void bsp_button_init(void)
 {
     GPIO_Config_T gpio_config;
-    const uint16_t all_buttons = BOARD_BUTTON_0_PIN |
-                                 BOARD_BUTTON_1_PIN |
-                                 BOARD_BUTTON_2_PIN;
-
-    s_config = (config != NULL) ? *config : g_bsp_button_default_config;
-    s_event_head = 0U;
-    s_event_tail = 0U;
-    s_dropped_events = 0U;
 
     RCM_EnableAHB1PeriphClock(BOARD_BUTTON_GPIO_CLOCK);
+
     GPIO_ConfigStructInit(&gpio_config);
-    gpio_config.pin = all_buttons;
+    gpio_config.pin = BOARD_BUTTON_0_PIN | BOARD_BUTTON_1_PIN | BOARD_BUTTON_2_PIN;
     gpio_config.mode = GPIO_MODE_IN;
     gpio_config.speed = GPIO_SPEED_2MHz;
     gpio_config.otype = GPIO_OTYPE_PP;
-    gpio_config.pupd = GPIO_PUPD_UP;
-    GPIO_Config(GPIOE, &gpio_config);
+    gpio_config.pupd = GPIO_PUPD_DOWN;
+    GPIO_Config(BOARD_BUTTON_PORT, &gpio_config);
 
     for (unsigned int i = 0U; i < (unsigned int)BSP_BUTTON_COUNT; ++i)
     {
-        s_button_states[i].raw_pressed = false;
-        s_button_states[i].stable_pressed = false;
-        s_button_states[i].long_press_sent = false;
-        s_button_states[i].raw_changed_at = 0U;
-        s_button_states[i].pressed_at = 0U;
-        s_button_states[i].next_repeat_at = 0U;
+        const BUTTON_IO_T io = {
+            .read_level = bsp_button_read_level,
+            .context = (void *)(uintptr_t)i,
+        };
+        button_init(&s_buttons[i], &s_board_button_config, &io, bsp_button_event_cb, (void *)(uintptr_t)i);
     }
 }
 
@@ -107,70 +119,14 @@ void bsp_button_process(uint32_t now_ms)
 {
     for (unsigned int i = 0U; i < (unsigned int)BSP_BUTTON_COUNT; ++i)
     {
-        BSP_BUTTON_STATE_T *state = &s_button_states[i];
-        const BSP_BUTTON_T button = (BSP_BUTTON_T)i;
-        const bool pressed = read_button(button);
-
-        if (pressed != state->raw_pressed)
-        {
-            state->raw_pressed = pressed;
-            state->raw_changed_at = now_ms;
-        }
-
-        if ((state->stable_pressed != state->raw_pressed) &&
-            time_elapsed(now_ms, state->raw_changed_at, s_config.debounce_ms))
-        {
-            state->stable_pressed = state->raw_pressed;
-
-            if (state->stable_pressed)
-            {
-                state->pressed_at = now_ms;
-                state->long_press_sent = false;
-                queue_event(button, BSP_BUTTON_EVENT_PRESS, now_ms);
-            }
-            else
-            {
-                queue_event(button, BSP_BUTTON_EVENT_RELEASE, now_ms);
-                if (!state->long_press_sent)
-                {
-                    queue_event(button, BSP_BUTTON_EVENT_CLICK, now_ms);
-                }
-                state->long_press_sent = false;
-            }
-        }
-
-        if (!state->stable_pressed)
-        {
-            continue;
-        }
-
-        if (!state->long_press_sent &&
-            time_elapsed(now_ms, state->pressed_at, s_config.long_press_ms))
-        {
-            state->long_press_sent = true;
-            state->next_repeat_at = now_ms + s_config.repeat_delay_ms;
-            queue_event(button, BSP_BUTTON_EVENT_LONG_PRESS, now_ms);
-        }
-        else if (state->long_press_sent &&
-                 (s_config.repeat_interval_ms != 0U) &&
-                 time_reached(now_ms, state->next_repeat_at))
-        {
-            state->next_repeat_at = now_ms + s_config.repeat_interval_ms;
-            queue_event(button, BSP_BUTTON_EVENT_REPEAT, now_ms);
-        }
+        button_process(&s_buttons[i], now_ms);
     }
 }
 
-bool bsp_button_get_event(BSP_BUTTON_EVENT_T *event)
+void bsp_button_set_event_cb(BSP_BUTTON_EVENT_CB cb, void *user_data)
 {
-    if ((event == NULL) || (s_event_tail == s_event_head))
-    {
-        return false;
-    }
-
-    *event = s_event_queue[s_event_tail];
-    s_event_tail = (uint8_t)((s_event_tail + 1U) % BSP_BUTTON_EVENT_QUEUE_SIZE);
-    return true;
+    s_app_event_cb = cb;
+    s_app_event_user_data = user_data;
 }
 
 bool bsp_button_is_pressed(BSP_BUTTON_T button)
@@ -179,16 +135,23 @@ bool bsp_button_is_pressed(BSP_BUTTON_T button)
     {
         return false;
     }
-
-    return s_button_states[button].stable_pressed;
+    return button_is_active(&s_buttons[button]);
 }
 
-void bsp_button_clear_events(void)
+uint32_t bsp_button_press_duration_ms(BSP_BUTTON_T button, uint32_t now_ms)
 {
-    s_event_tail = s_event_head;
+    if ((unsigned int)button >= (unsigned int)BSP_BUTTON_COUNT)
+    {
+        return 0U;
+    }
+    return button_active_duration_ms(&s_buttons[button], now_ms);
 }
 
-uint32_t bsp_button_get_dropped_event_count(void)
+BUTTON_T *bsp_button_get(BSP_BUTTON_T button)
 {
-    return s_dropped_events;
+    if ((unsigned int)button >= (unsigned int)BSP_BUTTON_COUNT)
+    {
+        return NULL;
+    }
+    return &s_buttons[button];
 }

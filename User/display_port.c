@@ -5,6 +5,7 @@
 #include "apm32f4xx.h"
 #include "bsp_lcd_bus.h"
 #include "st7789.h"
+#include "lcd_text.h"
 
 static ST7789_T s_display;
 static bool s_ready;
@@ -67,6 +68,7 @@ DISPLAY_PORT_STATUS_T display_port_init(void)
         return DISPLAY_PORT_ERROR_DRIVER;
     }
     s_ready = true;
+    lcd_text_init();
     if (display_port_fill(&full_screen, DISPLAY_COLOR_BLACK) != DISPLAY_PORT_OK)
     {
         s_ready = false;

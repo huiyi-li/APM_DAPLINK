@@ -22,6 +22,7 @@ target_sources(${LIB_NAME} PRIVATE
     src/bsp_sysclk.c
     src/bsp_uart1.c
     src/bsp_w25qxx.c
+    src/button.c
 )
 
 # 添加编译定义

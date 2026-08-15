@@ -42,6 +42,7 @@
 #include "bsp_uart1.h"
 #include "bsp_w25qxx.h"
 #include "display_port.h"
+#include "lcd_text.h"
 
 #define VECT_TAB_OFFSET  0x00
 
@@ -100,6 +101,173 @@ static const uint16_t lcd_test_colors[] = {
     DISPLAY_COLOR_WHITE,
     DISPLAY_COLOR_BLACK,
 };
+
+/* ------------------------------------------------------------------ */
+/* Button framework demo: show button state/events on the LCD.        */
+/* ------------------------------------------------------------------ */
+
+#define BTN_DISPLAY_COUNT 3U
+#define BTN_STATE_COLOR_PRESS  DISPLAY_COLOR_YELLOW
+#define BTN_STATE_COLOR_FREE   DISPLAY_COLOR_WHITE
+#define BTN_EVENT_COLOR        DISPLAY_COLOR_CYAN
+#define BTN_BG_COLOR           DISPLAY_COLOR_BLACK
+
+typedef struct
+{
+    char state_text[20];
+    char event_text[24];
+    uint32_t event_serial;
+} BTN_DISPLAY_T;
+
+static BTN_DISPLAY_T s_btn_display[BTN_DISPLAY_COUNT];
+
+/* Pads the string with spaces up to min_len so that redrawing always
+ * overwrites any longer text that was previously displayed. */
+static void btn_display_pad(char *buf, size_t buf_size, size_t min_len)
+{
+    size_t len = strlen(buf);
+
+    while ((len < min_len) && (len + 1U < buf_size))
+    {
+        buf[len++] = ' ';
+        buf[len] = '\0';
+    }
+}
+
+static void btn_display_set_event(BSP_BUTTON_T button,
+                                  BUTTON_EVENT_T event,
+                                  uint32_t param)
+{
+    BTN_DISPLAY_T *disp;
+    const char *name;
+
+    if ((unsigned int)button >= BTN_DISPLAY_COUNT)
+    {
+        return;
+    }
+    disp = &s_btn_display[button];
+
+    switch (event)
+    {
+        case BUTTON_EVENT_PRESSED:
+            name = "PRESS";
+            break;
+        case BUTTON_EVENT_RELEASED:
+            name = "RELEASE";
+            break;
+        case BUTTON_EVENT_CLICKED:
+            name = "CLICK";
+            break;
+        case BUTTON_EVENT_DOUBLE_CLICKED:
+            name = "2CLICK";
+            break;
+        case BUTTON_EVENT_TRIPLE_CLICKED:
+            name = "3CLICK";
+            break;
+        case BUTTON_EVENT_MULTI_CLICKED:
+            name = "MCLK";
+            break;
+        case BUTTON_EVENT_LONG_PRESSED:
+            name = "LONG";
+            break;
+        case BUTTON_EVENT_EXTRA_LONG_PRESSED:
+            name = "XLONG";
+            break;
+        default:
+            name = "?";
+            break;
+    }
+
+    if ((event == BUTTON_EVENT_CLICKED) ||
+        (event == BUTTON_EVENT_DOUBLE_CLICKED) ||
+        (event == BUTTON_EVENT_TRIPLE_CLICKED) ||
+        (event == BUTTON_EVENT_MULTI_CLICKED))
+    {
+        (void)snprintf(disp->event_text, sizeof(disp->event_text), "K%lu>%s x%lu",
+                       (unsigned long)(button + 1U), name, (unsigned long)param);
+    }
+    else
+    {
+        (void)snprintf(disp->event_text, sizeof(disp->event_text), "K%lu>%s",
+                       (unsigned long)(button + 1U), name);
+    }
+    btn_display_pad(disp->event_text, sizeof(disp->event_text), 16U);
+    disp->event_serial++;
+}
+
+static void btn_app_event_cb(BSP_BUTTON_T button,
+                             BUTTON_EVENT_T event,
+                             uint32_t param,
+                             uint32_t now_ms,
+                             void *user_data)
+{
+    (void)now_ms;
+    (void)user_data;
+    btn_display_set_event(button, event, param);
+}
+
+void thread_button_lcd_test_entry(ULONG thread_input)
+{
+    uint32_t last_event_serial[BTN_DISPLAY_COUNT] = { 0U, 0U, 0U, 0U };
+    char line[24];
+    const uint16_t row_state_y[BTN_DISPLAY_COUNT] = { 24U, 72U, 120U };
+    const uint16_t row_event_y[BTN_DISPLAY_COUNT] = { 40U, 88U, 136U };
+
+    (void)thread_input;
+
+    while (!display_port_is_ready())
+    {
+        tx_thread_sleep(100U);
+    }
+
+    display_port_fill(&(DISPLAY_AREA_T){ 0U, 0U,
+                                        DISPLAY_PORT_WIDTH - 1U,
+                                        DISPLAY_PORT_HEIGHT - 1U },
+                      BTN_BG_COLOR);
+    lcd_text_draw_string(16U, 0U, "BUTTON TEST", DISPLAY_COLOR_WHITE, BTN_BG_COLOR);
+    lcd_text_draw_string(16U, 156U, "SHORT/DOUBLE/TRIPLE", DISPLAY_COLOR_GREEN, BTN_BG_COLOR);
+    lcd_text_draw_string(16U, 172U, "LONG/XLONG", DISPLAY_COLOR_GREEN, BTN_BG_COLOR);
+    lcd_text_draw_string(16U, 188U, "CLICK=1 2CLK=2 3CLK=3", DISPLAY_COLOR_GREEN, BTN_BG_COLOR);
+    printf("[BTN-LCD] test start\r\n");
+
+    while (1)
+    {
+        for (uint32_t i = 0U; i < BTN_DISPLAY_COUNT; ++i)
+        {
+            const BSP_BUTTON_T button = (BSP_BUTTON_T)i;
+            const uint32_t now = (uint32_t)tx_time_get();
+            const uint32_t duration = bsp_button_press_duration_ms(button, now);
+            const bool pressed = bsp_button_is_pressed(button);
+            BTN_DISPLAY_T *disp = &s_btn_display[i];
+            uint16_t state_color;
+
+            /* State line (redrawn every cycle while held, to show ms). */
+            if (pressed)
+            {
+                (void)snprintf(line, sizeof(line), "K%lu:PRESS %lu",
+                               (unsigned long)(i + 1U), (unsigned long)duration);
+                state_color = BTN_STATE_COLOR_PRESS;
+            }
+            else
+            {
+                (void)snprintf(line, sizeof(line), "K%lu:RELEASE",
+                               (unsigned long)(i + 1U));
+                state_color = BTN_STATE_COLOR_FREE;
+            }
+            btn_display_pad(line, sizeof(line), 14U);
+            (void)lcd_text_draw_string(16U, row_state_y[i], line, state_color, BTN_BG_COLOR);
+
+            /* Event line (only redrawn when a new event arrived). */
+            if (disp->event_serial != last_event_serial[i])
+            {
+                last_event_serial[i] = disp->event_serial;
+                (void)lcd_text_draw_string(16U, row_event_y[i], disp->event_text,
+                                           BTN_EVENT_COLOR, BTN_BG_COLOR);
+            }
+        }
+        tx_thread_sleep(100U);
+    }
+}
 
 void thread_lcd_test_entry(ULONG thread_input)
 {
@@ -188,8 +356,8 @@ void tx_application_define(void *first_unused_memory)
             InitTaskPtr, 2048,
             6, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    /* 1s periodic ST7789 background color fill test. */
-    tx_thread_create(&thread_lcd_test, "thread lcd test", thread_lcd_test_entry, 0,
+    /* Button framework demo: button state/events on the LCD. */
+    tx_thread_create(&thread_lcd_test, "thread btn lcd", thread_button_lcd_test_entry, 0,
             LcdTestTaskPtr, LCD_TEST_STACK_SIZE,
             5, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
@@ -215,7 +383,8 @@ int main(void)
 
     bsp_sysclk_init();
     bsp_led_init();
-    bsp_button_init(NULL);
+    bsp_button_init();
+    bsp_button_set_event_cb(btn_app_event_cb, NULL);
     bsp_debug_uart_init(115200U);
     (void)bsp_cdc_uart_init(NULL);
     bsp_uart1_init(115200U);

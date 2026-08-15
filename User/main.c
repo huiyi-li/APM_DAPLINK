@@ -429,7 +429,7 @@ int main(void)
 
             /* ---- performance test ---- */
             {
-                uint8_t perf_buf[512];
+                static uint8_t perf_buf[4096];
                 uint32_t t0, elapsed;
                 uint32_t addr;
                 uint32_t perf_size = 256U * 1024U;
@@ -439,6 +439,10 @@ int main(void)
                 {
                     perf_buf[i] = (uint8_t)(i & 0xFFU);
                 }
+                printf("[DBG] demcr=%08lx ctrl=%08lx cyccnt=%08lx\r\n",
+                       (unsigned long)CoreDebug->DEMCR,
+                       (unsigned long)DWT->CTRL,
+                       (unsigned long)DWT->CYCCNT);
                 t0 = DWT->CYCCNT;
                 for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
                 {
@@ -453,25 +457,66 @@ int main(void)
                 }
 
                 /* erase + write 256KB throughput */
-                t0 = DWT->CYCCNT;
-                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += BSP_W25QXX_SECTOR_SIZE)
                 {
-                    (void)bsp_w25qxx_erase_sector(addr);
-                }
-                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
-                {
-                    for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                    uint32_t erase_fail = 0U;
+                    uint32_t write_fail = 0U;
+                    uint32_t t_erase, t_write;
+                    t0 = DWT->CYCCNT;
+                    for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += BSP_W25QXX_SECTOR_SIZE)
                     {
-                        perf_buf[i] = (uint8_t)(addr + i);
+                        if (bsp_w25qxx_erase_sector(addr) != BSP_W25QXX_OK)
+                        {
+                            erase_fail++;
+                        }
                     }
-                    (void)bsp_w25qxx_write(addr, perf_buf, sizeof(perf_buf));
-                }
-                elapsed = (uint32_t)(DWT->CYCCNT - t0);
-                {
-                    const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
-                    printf("W25Q erase+write 256KB: %lu ms, %lu KB/s\r\n",
-                           (unsigned long)elapsed_ms,
-                           (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
+                    t_erase = (uint32_t)(DWT->CYCCNT - t0);
+                    t0 = DWT->CYCCNT;
+                    for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+                    {
+                        for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                        {
+                            perf_buf[i] = (uint8_t)(addr + i);
+                        }
+                        if (bsp_w25qxx_write(addr, perf_buf, sizeof(perf_buf)) != BSP_W25QXX_OK)
+                        {
+                            write_fail++;
+                        }
+                    }
+                    t_write = (uint32_t)(DWT->CYCCNT - t0);
+                    printf("W25Q write chunk: %u bytes/sector-aligned\r\n", (unsigned)sizeof(perf_buf));
+                    printf("W25Q erase 256KB: %lu ms (%lu ms/sector), write 256KB: %lu ms (%lu us/page)\r\n",
+                           (unsigned long)(t_erase / (SystemCoreClock / 1000U)),
+                           (unsigned long)(t_erase / (SystemCoreClock / 1000U) / (perf_size / BSP_W25QXX_SECTOR_SIZE)),
+                           (unsigned long)(t_write / (SystemCoreClock / 1000U)),
+                           (unsigned long)(t_write / (SystemCoreClock / 1000U) * 1000U / (perf_size / sizeof(perf_buf))));
+                    elapsed = (uint32_t)(DWT->CYCCNT - t0);
+                    {
+                        const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
+                        printf("W25Q erase+write 256KB: %lu ms, %lu KB/s (erase_fail=%lu write_fail=%lu)\r\n",
+                               (unsigned long)elapsed_ms,
+                               (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms),
+                               (unsigned long)erase_fail,
+                               (unsigned long)write_fail);
+                    }
+
+                    /* read-back verify of the performance region */
+                    {
+                        uint32_t verify_fail = 0U;
+                        for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+                        {
+                            (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
+                            for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                            {
+                                if (perf_buf[i] != (uint8_t)(addr + i))
+                                {
+                                    verify_fail++;
+                                }
+                            }
+                        }
+                        printf("W25Q perf region verify: %s (bad_bytes=%lu)\r\n",
+                               (verify_fail == 0U) ? "PASS" : "FAIL",
+                               (unsigned long)verify_fail);
+                    }
                 }
             }
         }

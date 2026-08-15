@@ -79,8 +79,18 @@ static void w25qxx_delay_us(uint32_t delay_us)
 
 #if BSP_W25QXX_USE_SW_SPI
 
+/* Cortex-M bit-band helper: single-cycle atomic access to one GPIO bit. */
+#define W25QXX_GPIO_BB(reg_addr, bit_num)                                       \
+    ((volatile uint32_t *)((uint32_t)PERIPH_BB_BASE +                            \
+                           (((uint32_t)(reg_addr) - 0x40000000U) << 5U) +        \
+                           ((uint32_t)(bit_num) << 2U)))
+
 /* Software bit-bang SPI, mode 0 (CPOL=0, CPHA=0).
- * DI on PA6 (output to flash), DO on PA7 (input from flash). */
+ * SCK on PA5, DI on PA6 (output to flash), DO on PA7 (input from flash). */
+#define W25QXX_BB_SCK  W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_SCK_PORT->ODATA,  BOARD_FLASH_SCK_PIN_SOURCE)
+#define W25QXX_BB_DI   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MISO_PORT->ODATA, BOARD_FLASH_MISO_PIN_SOURCE)
+#define W25QXX_BB_DO   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MOSI_PORT->IDATA, BOARD_FLASH_MOSI_PIN_SOURCE)
+
 static void w25qxx_bus_init(void)
 {
     GPIO_Config_T gpio_config;
@@ -126,21 +136,11 @@ static BSP_W25QXX_STATUS_T w25qxx_transfer(uint8_t tx_data, uint8_t *rx_data)
 
     for (uint8_t i = 0U; i < 8U; ++i)
     {
-        GPIO_ResetBit(BOARD_FLASH_SCK_PORT, BOARD_FLASH_SCK_PIN);
-        if ((tx_data & 0x80U) != 0U)
-        {
-            GPIO_SetBit(BOARD_FLASH_MISO_PORT, BOARD_FLASH_MISO_PIN);
-        }
-        else
-        {
-            GPIO_ResetBit(BOARD_FLASH_MISO_PORT, BOARD_FLASH_MISO_PIN);
-        }
-        GPIO_SetBit(BOARD_FLASH_SCK_PORT, BOARD_FLASH_SCK_PIN);
+        *W25QXX_BB_SCK = 0U;
+        *W25QXX_BB_DI = (tx_data & 0x80U) >> 7U;
+        *W25QXX_BB_SCK = 1U;
         rx <<= 1U;
-        if (GPIO_ReadInputBit(BOARD_FLASH_MOSI_PORT, BOARD_FLASH_MOSI_PIN) == BIT_SET)
-        {
-            rx |= 0x01U;
-        }
+        rx |= (uint8_t)*W25QXX_BB_DO;
         tx_data <<= 1U;
     }
 

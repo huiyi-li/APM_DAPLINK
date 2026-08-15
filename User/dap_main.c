@@ -130,7 +130,6 @@ __ALIGN_BEGIN const uint8_t USBD_BinaryObjectStoreDescriptor[] = {
 #endif
 };
 
-#if (USBD_WEBUSB_ENABLE)
 /*!< custom hid report descriptor */
 const uint8_t hid_custom_report_desc[HID_CUSTOM_REPORT_DESC_SIZE] = {
         /* USER CODE BEGIN 0 */
@@ -164,7 +163,6 @@ const uint8_t hid_custom_report_desc[HID_CUSTOM_REPORT_DESC_SIZE] = {
         /* USER CODE END 0 */
         0xC0 /*     END_COLLECTION	             */
 };
-#endif
 
 static const uint8_t device_descriptor[] = {
         USB_DEVICE_DESCRIPTOR_INIT(USB_2_1, 0xEF, 0x02, 0x01, USBD_VID, USBD_PID, 0x0100, 0x01),
@@ -523,6 +521,37 @@ struct usbd_endpoint hid_int_ep = {
     .ep_addr = DAP_HID_INT_EP,
     .ep_cb = hid_in_callback
 };
+
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t HID_read_buffer[HID_PACKET_SIZE];
+USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t HID_write_buffer[HID_PACKET_SIZE];
+
+void hid_custom_out_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
+{
+    (void)busid;
+    (void)ep;
+    USB_LOG_RAW("HID OUT %u\r\n", (unsigned int)nbytes);
+    usbd_ep_start_read(0, HID_OUT_EP, HID_read_buffer, HID_PACKET_SIZE);
+}
+
+struct usbd_endpoint hid_custom_in_ep = {
+    .ep_addr = HID_IN_EP,
+    .ep_cb = hid_in_callback
+};
+
+struct usbd_endpoint hid_custom_out_ep = {
+    .ep_addr = HID_OUT_EP,
+    .ep_cb = hid_custom_out_callback
+};
+
+void HID_Handle(void)
+{
+    static uint8_t hid_tx_idle = 1;
+
+    if (hid_tx_idle) {
+        hid_tx_idle = 0;
+        usbd_ep_start_write(0, HID_IN_EP, HID_write_buffer, HID_PACKET_SIZE);
+    }
+}
 #endif
 
 struct usbd_interface dap_intf;

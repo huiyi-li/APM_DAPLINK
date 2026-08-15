@@ -4,11 +4,15 @@
 #include "usbd_core.h"
 #include "usbd_cdc.h"
 #include "usbd_msc.h"
+#include "usbd_hid.h"
 #include "chry_ringbuffer.h"
 #include "DAP_config.h"
 #include "DAP.h"
 
-#define HID_OUT_EP      0x81
+#define HID_IN_EP   0x81
+#define HID_OUT_EP  0x01
+
+#define DAP_HID_INT_EP 0x81
 
 #define DAP_IN_EP  0x82
 #define DAP_OUT_EP 0x02
@@ -24,7 +28,7 @@
 #define MSC_IN_EP  0x86
 #define MSC_OUT_EP 0x07
 
-//#define CONFIG_DAP_HID
+#define CONFIG_DAP_HID
 
 
 #define USBD_VID           0x0D28
@@ -38,7 +42,8 @@
 #define HID_PACKET_SIZE             512
 #define CONFIG_HID_DESCRIPTOR_LEN   (9 + 9 + 7 + 7)
 #define CONFIG_HID_INTF_NUM         1
-#define HID_CUSTOM_REPORT_DESC_SIZE 53
+#define HID_CUSTOM_REPORT_DESC_SIZE 56
+#define HID_INTF_NUM                5
 #define HIDRAW_INTERVAL             4
 #else
 #define CONFIG_HID_DESCRIPTOR_LEN   0

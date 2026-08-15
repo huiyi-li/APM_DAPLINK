@@ -393,7 +393,6 @@ void dap_out_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 void dap_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void) busid;
-    USB_LOG_RAW("actual out len:%d\r\n", (unsigned int)nbytes);
     if (nbytes > 0) {
         /* Echo back to host */
         usbd_ep_start_write(busid, CDC_IN_EP, usb_tmpbuffer, nbytes);
@@ -414,7 +413,6 @@ void dap_in_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 
 void usbd_cdc_acm_bulk_out(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
-    USB_LOG_RAW("actual in len:%d\r\n", (unsigned int)nbytes);
     (void) busid;
     // usbd_ep_start_read(0, CDC_OUT_EP, usb_tmpbuffer, DAP_PACKET_SIZE);
 //    printf("%s",usb_tmpbuffer);
@@ -432,7 +430,6 @@ void usbd_cdc_acm_bulk_in(uint8_t busid, uint8_t ep, uint32_t nbytes)
     uint32_t size;
     uint8_t *buffer;
 
-    USB_LOG_RAW("send in len:%d\r\n", (unsigned int)nbytes);
     chry_ringbuffer_linear_read_done(&g_uartrx, nbytes);
     if ((nbytes % DAP_PACKET_SIZE) == 0 && nbytes) {
         /* send zlp */
@@ -452,11 +449,6 @@ void usbd_cdc_acm_bulk_in(uint8_t busid, uint8_t ep, uint32_t nbytes)
 void usbd_cdc_acm_bulk_out1(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void) busid;
-    USB_LOG_RAW("CDC1 OUT %u: ", (unsigned int)nbytes);
-    for (uint32_t i = 0U; (i < nbytes) && (i < 16U); ++i) {
-        USB_LOG_RAW("%02X ", (unsigned int)usb_tmpbuffer1[i]);
-    }
-    USB_LOG_RAW("\r\n");
     chry_ringbuffer_write(&g_usbrx1, usb_tmpbuffer1, nbytes);
     if (chry_ringbuffer_get_free(&g_usbrx1) >= DAP_PACKET_SIZE) {
         usbd_ep_start_read(0, CDC1_OUT_EP, usb_tmpbuffer1, DAP_PACKET_SIZE);
@@ -529,7 +521,6 @@ void hid_custom_out_callback(uint8_t busid, uint8_t ep, uint32_t nbytes)
 {
     (void)busid;
     (void)ep;
-    USB_LOG_RAW("HID OUT %u\r\n", (unsigned int)nbytes);
     usbd_ep_start_read(0, HID_OUT_EP, HID_read_buffer, HID_PACKET_SIZE);
 }
 

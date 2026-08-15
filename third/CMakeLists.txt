@@ -1,5 +1,6 @@
 
 add_subdirectory(DAP)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE dap_sw)
 
 set(CHERRYUSB_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/core/usbd_core.c

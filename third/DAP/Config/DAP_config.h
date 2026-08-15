@@ -422,25 +422,32 @@ __STATIC_INLINE void PORT_OFF (void) {
 
 // SWCLK/TCK I/O pin -------------------------------------
 
+/* Cortex-M bit-band helper: single-cycle atomic access to one GPIO bit.
+ * Much faster than read-modify-write and branch-free for SWDIO output. */
+#define DAP_GPIO_BB(reg_addr, bit_num)                                          \
+    ((volatile uint32_t *)((uint32_t)PERIPH_BB_BASE +                            \
+                           (((uint32_t)(reg_addr) - 0x40000000U) << 5U) +        \
+                           ((uint32_t)(bit_num) << 2U)))
+
 /** SWCLK/TCK I/O pin: Get Input.
 \return Current status of the SWCLK/TCK DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWCLK_TCK_IN  (void) {
-  return ((SWCLK_TCK_PIN_PORT->IDATA & SWCLK_TCK_PIN) ? 1U : 0U);
+  return (*DAP_GPIO_BB((uint32_t)&SWCLK_TCK_PIN_PORT->IDATA, SWCLK_TCK_PIN_Bit) & 1U);
 }
 
 /** SWCLK/TCK I/O pin: Set Output to High.
 Set the SWCLK/TCK DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_SET (void) {
-  SWCLK_TCK_PIN_PORT->BSCL = SWCLK_TCK_PIN;
+  *DAP_GPIO_BB((uint32_t)&SWCLK_TCK_PIN_PORT->ODATA, SWCLK_TCK_PIN_Bit) = 1U;
 }
 
 /** SWCLK/TCK I/O pin: Set Output to Low.
 Set the SWCLK/TCK DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
-  SWCLK_TCK_PIN_PORT->BSCH = SWCLK_TCK_PIN;
+  *DAP_GPIO_BB((uint32_t)&SWCLK_TCK_PIN_PORT->ODATA, SWCLK_TCK_PIN_Bit) = 0U;
 }
 
 
@@ -450,38 +457,35 @@ __STATIC_FORCEINLINE void     PIN_SWCLK_TCK_CLR (void) {
 \return Current status of the SWDIO/TMS DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_TMS_IN  (void) {
-  return ((SWDIO_IN_PIN_PORT->IDATA & SWDIO_IN_PIN) ? 1 : 0);
+  return (*DAP_GPIO_BB((uint32_t)&SWDIO_IN_PIN_PORT->IDATA, SWDIO_IN_PIN_Bit) & 1U);
 }
 
 /** SWDIO/TMS I/O pin: Set Output to High.
 Set the SWDIO/TMS DAP hardware I/O pin to high level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_SET (void) {
-  SWDIO_OUT_PIN_PORT->BSCL = SWDIO_OUT_PIN;
+  *DAP_GPIO_BB((uint32_t)&SWDIO_OUT_PIN_PORT->ODATA, SWDIO_OUT_PIN_Bit) = 1U;
 }
 
 /** SWDIO/TMS I/O pin: Set Output to Low.
 Set the SWDIO/TMS DAP hardware I/O pin to low level.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_TMS_CLR (void) {
-  SWDIO_OUT_PIN_PORT->BSCH = SWDIO_OUT_PIN;
+  *DAP_GPIO_BB((uint32_t)&SWDIO_OUT_PIN_PORT->ODATA, SWDIO_OUT_PIN_Bit) = 0U;
 }
 
 /** SWDIO I/O pin: Get Input (used in SWD mode only).
 \return Current status of the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE uint32_t PIN_SWDIO_IN      (void) {
-  return ((SWDIO_IN_PIN_PORT->IDATA & SWDIO_IN_PIN) ? 1 : 0);
+  return (*DAP_GPIO_BB((uint32_t)&SWDIO_IN_PIN_PORT->IDATA, SWDIO_IN_PIN_Bit) & 1U);
 }
 
 /** SWDIO I/O pin: Set Output (used in SWD mode only).
 \param bit Output value for the SWDIO DAP hardware I/O pin.
 */
 __STATIC_FORCEINLINE void     PIN_SWDIO_OUT     (uint32_t bit) {
-  if (bit & 1)
-        SWDIO_OUT_PIN_PORT->BSCL = SWDIO_OUT_PIN;
-    else
-        SWDIO_OUT_PIN_PORT->BSCH = SWDIO_OUT_PIN;
+  *DAP_GPIO_BB((uint32_t)&SWDIO_OUT_PIN_PORT->ODATA, SWDIO_OUT_PIN_Bit) = (bit & 1U);
 }
 
 /** SWDIO I/O pin: Switch to Output mode (used in SWD mode only).

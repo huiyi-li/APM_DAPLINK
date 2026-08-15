@@ -5,12 +5,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* SPI transport selection:
+ *   1 = hardware SPI3 (PC10 SCK / PC12 MOSI, faster)
+ *   0 = software bit-bang SPI (same pins, GPIO toggling)
+ */
+#ifndef BSP_LCD_BUS_USE_HW_SPI
+#define BSP_LCD_BUS_USE_HW_SPI 1
+#endif
+
 typedef enum
 {
     BSP_LCD_BUS_OK = 0,
     BSP_LCD_BUS_ERROR_INVALID_ARGUMENT,
     BSP_LCD_BUS_ERROR_NOT_INITIALIZED,
-    BSP_LCD_BUS_ERROR_TIMEOUT
+    BSP_LCD_BUS_ERROR_TIMEOUT,
+    BSP_LCD_BUS_ERROR_DRIVER
 } BSP_LCD_BUS_STATUS_T;
 
 BSP_LCD_BUS_STATUS_T bsp_lcd_bus_init(void);

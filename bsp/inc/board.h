@@ -68,9 +68,10 @@
 #define BOARD_TARGET_SWDIO_PIN          GPIO_PIN_3
 #define BOARD_TARGET_SWDIO_PIN_SOURCE   GPIO_PIN_SOURCE_3
 
-/* LCD control and reserved SPI3 signals. */
+/* LCD control signals: software SPI bit-bang bus. */
 #define BOARD_LCD_DC_PORT               GPIOC
 #define BOARD_LCD_DC_PIN                GPIO_PIN_9
+#define BOARD_LCD_DC_PIN_SOURCE         GPIO_PIN_SOURCE_9
 #define BOARD_LCD_SCK_PORT              GPIOC
 #define BOARD_LCD_SCK_PIN               GPIO_PIN_10
 #define BOARD_LCD_SCK_PIN_SOURCE        GPIO_PIN_SOURCE_10
@@ -79,7 +80,12 @@
 #define BOARD_LCD_MOSI_PIN_SOURCE       GPIO_PIN_SOURCE_12
 #define BOARD_LCD_RESET_PORT            GPIOC
 #define BOARD_LCD_RESET_PIN             GPIO_PIN_13
+#define BOARD_LCD_RESET_PIN_SOURCE      GPIO_PIN_SOURCE_13
+#define BOARD_LCD_CS_PORT               GPIOA
+#define BOARD_LCD_CS_PIN                GPIO_PIN_15
+#define BOARD_LCD_CS_PIN_SOURCE         GPIO_PIN_SOURCE_15
 #define BOARD_LCD_GPIO_CLOCK            RCM_AHB1_PERIPH_GPIOC
+#define BOARD_LCD_CS_GPIO_CLOCK         RCM_AHB1_PERIPH_GPIOA
 
 /* USB OTG HS controller with internal FS PHY. */
 #define BOARD_USB_DM_PORT               GPIOB

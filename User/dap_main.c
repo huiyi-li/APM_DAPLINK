@@ -3,6 +3,7 @@
 #include "DAP.h"
 #include "bsp_uart1.h"
 #include "bsp_cdc_uart.h"
+#include "bsp_printf.h"
 
 #define USB_CONFIG_SIZE (9 + CMSIS_DAP_INTERFACE_SIZE + 2U * CDC_ACM_DESCRIPTOR_LEN + \
                         CONFIG_MSC_DESCRIPTOR_LEN + CONFIG_HID_DESCRIPTOR_LEN)

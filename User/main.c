@@ -45,6 +45,7 @@
 #include "lcd_text.h"
 #include "lvgl_port.h"
 #include "lvgl_demo.h"
+#include "filex_demo.h"
 
 #define VECT_TAB_OFFSET  0x00
 
@@ -80,7 +81,7 @@ TX_BYTE_POOL            byte_pool_0;
 TX_BLOCK_POOL           block_pool_0;
 
 #define DEMO_STACK_SIZE         1024
-#define DEMO_BYTE_POOL_SIZE     28672
+#define DEMO_BYTE_POOL_SIZE     16384
 #define DEMO_BLOCK_POOL_SIZE    100
 #define DEMO_QUEUE_SIZE         100
 
@@ -430,7 +431,6 @@ void tx_application_define(void *first_unused_memory)
     tx_byte_allocate(&byte_pool_0, (VOID **) &InitTaskPtr, 2048, TX_NO_WAIT);
     tx_byte_allocate(&byte_pool_0, (VOID **) &LcdTestTaskPtr, LCD_TEST_STACK_SIZE, TX_NO_WAIT);
     tx_byte_allocate(&byte_pool_0, (VOID **) &LvglTaskPtr, LVGL_STACK_SIZE, TX_NO_WAIT);
-    tx_byte_allocate(&byte_pool_0, (VOID **) &W25QTaskPtr, 2048, TX_NO_WAIT);
 
     /* Create the main thread.  */
     tx_thread_create(&thread_0, "thread 0", thread_0_entry, 0,
@@ -451,6 +451,9 @@ void tx_application_define(void *first_unused_memory)
      * concurrent SPI use stalls LVGL rendering (arc hung at 36). */
     (void)W25QTaskPtr;
     (void)thread_w25q_test_entry;
+
+    /* FileX demo thread (own static stack, low priority). */
+    filex_demo_start();
 
     (void)thread_lcd_test;
     (void)thread_button_lcd_test_entry;
@@ -633,15 +636,10 @@ int main(void)
     {
         (void)bsp_w25qxx_read_jedec_id(&flash_jedec_id);
         printf("W25Q JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
-        if (flash_jedec_id != BSP_W25QXX_JEDEC_ID)
-        {
-            printf("W25Q wrong chip (expected %06lX)\r\n",
-                   (unsigned long)BSP_W25QXX_JEDEC_ID);
-        }
     }
     else
     {
-        printf("W25Q init failed: %d\r\n", (int)bsp_w25qxx_read_jedec_id(&flash_jedec_id));
+        printf("W25Q init failed\r\n");
     }
     tx_kernel_enter();
 

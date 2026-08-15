@@ -1,9 +1,42 @@
 #include "bsp_printf.h"
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "apm32f4xx_usart.h"
 #include "board.h"
+#include "tx_api.h"
+
+/*
+ * printf lock: newlib stdio is not reentrant; multiple threads calling
+ * printf concurrently corrupt the stdout FILE structure. The mutex is
+ * created lazily so it also works before the scheduler is up.
+ */
+static TX_MUTEX s_print_mutex;
+static bool     s_print_mutex_ready;
+
+void bsp_printf_lock(void)
+{
+    if (!s_print_mutex_ready)
+    {
+        if (tx_mutex_create(&s_print_mutex, "print", TX_NO_INHERIT) == TX_SUCCESS)
+        {
+            s_print_mutex_ready = true;
+        }
+    }
+    if (s_print_mutex_ready)
+    {
+        (void)tx_mutex_get(&s_print_mutex, TX_WAIT_FOREVER);
+    }
+}
+
+void bsp_printf_unlock(void)
+{
+    if (s_print_mutex_ready)
+    {
+        (void)tx_mutex_put(&s_print_mutex);
+    }
+}
 
 void bsp_debug_uart_init(uint32_t baud_rate)
 {

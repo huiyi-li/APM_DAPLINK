@@ -1,0 +1,25 @@
+# 先和客户讨论好实现方案和技术目标再拆分任务执行
+
+#有不明确的问题要一直询问用户直到目的清晰
+
+# 芯片型号是APM32f407vg系列
+
+允许使用pyocd调试器开启gdb服务器进行gdb调试
+
+pyocd调试器选择jlink 可能会出现daplink等设备daplink设备是我们要实现的目标
+
+最终目标是daplink的winusb版本和hid版本以及两个cdc串口设备
+
+最小化测试可以使用cherryusb的最小demo
+
+目前在keil环境下编译出来的源码是可以直接识别成双cdc设备带一个winusb的daplink设备的
+
+daplink设备目标是一个high usb设备
+
+现在gcc版本编译出来的设备运行可能存在问题
+
+jlink的虚拟串口可以使用115200波特率接受数据查看目标板日志
+
+先讨论实现，目标明确后再执行修改
+
+允许修改udev规则导入usb设备使用

@@ -62,6 +62,12 @@ set(TX_USER_FILE "${CMAKE_SOURCE_DIR}/User/tx_user.h")
 add_subdirectory(third/threadx)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE threadx)
 
+# FileX (FAT filesystem on the W25Q128 SPI flash)
+set(FX_USER_FILE "${CMAKE_SOURCE_DIR}/User/fx_user.h")
+add_subdirectory(third/filex)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE filex)
+target_compile_options(filex PRIVATE -O2)
+
 # 设置操作系统抽象层
 set(CONFIG_CHERRYUSB_OSAL "threadx")
 
@@ -77,6 +83,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/drivers/display/lcd_text.c
     ${CMAKE_SOURCE_DIR}/User/lvgl_port.c
     ${CMAKE_SOURCE_DIR}/User/lvgl_demo.c
+    ${CMAKE_SOURCE_DIR}/User/fx_spi_flash_driver.c
+    ${CMAKE_SOURCE_DIR}/User/filex_demo.c
 )
 
 # APM32F407 vector table and ThreadX low-level initialization.

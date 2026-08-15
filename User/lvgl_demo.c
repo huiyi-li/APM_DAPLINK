@@ -1,6 +1,7 @@
 #include "lvgl_demo.h"
 
 #include <stdio.h>
+#include "bsp_printf.h"
 #include "lvgl.h"
 #include "lvgl_port.h"
 

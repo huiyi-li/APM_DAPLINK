@@ -1,6 +1,7 @@
 #include "lvgl_port.h"
 
 #include <stdio.h>
+#include "bsp_printf.h"
 #include "lvgl.h"
 #include "tx_api.h"
 #include "display_port.h"

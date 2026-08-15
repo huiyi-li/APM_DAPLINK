@@ -10,6 +10,8 @@ add_library(${LIB_NAME} STATIC)
 
 target_include_directories(${LIB_NAME} PUBLIC
         inc
+        ${CMAKE_SOURCE_DIR}/third/threadx/common/inc
+        ${CMAKE_SOURCE_DIR}/third/threadx/ports/cortex_m4/gnu/inc
 )
 
 target_sources(${LIB_NAME} PRIVATE

@@ -1,6 +1,7 @@
 #include "bsp_button.h"
 
 #include <stdio.h>
+#include "bsp_printf.h"
 #include <string.h>
 
 #include "board.h"

@@ -6,7 +6,9 @@ set(CHERRYUSB_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/core/usbd_core.c
     ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/class/cdc/usbd_cdc_acm.c
     ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/class/hid/usbd_hid.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/class/msc/usbd_msc.c
     ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/port/dwc2/usb_dc_dwc2.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/CherryUSB/osal/usb_osal_threadx.c
 )
 
 # 添加源文件到库

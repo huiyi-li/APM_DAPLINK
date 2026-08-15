@@ -52,7 +52,7 @@ static UINT filex_demo_format(void)
                            FX_DEMO_VOLUME_NAME,
                            1U,                        /* number of FATs    */
                            512U,                      /* directory entries */
-                           FX_SPI_FLASH_HIDDEN_SECTORS,
+                           0U,                      /* hidden sectors: the MSC device IS the volume */
                            FX_SPI_FLASH_PARTITION_SECTORS,
                            FX_SPI_FLASH_SECTOR_SIZE,  /* bytes per sector  */
                            8U,                        /* sectors/cluster   */
@@ -72,9 +72,9 @@ static UINT filex_demo_open_media(void)
     status = fx_media_open(&s_media, FX_SPI_FLASH_MEDIA_NAME,
                            fx_spi_flash_driver, NULL,
                            s_media_memory, sizeof(s_media_memory));
-    if (status == FX_MEDIA_INVALID)
+    if ((status == FX_MEDIA_INVALID) || (status == FX_BOOT_ERROR))
     {
-        printf("[FileX] no filesystem, formatting...\r\n");
+        printf("[FileX] no filesystem (0x%02X), formatting...\r\n", status);
         status = filex_demo_format();
         if (status != FX_SUCCESS)
         {
@@ -226,7 +226,7 @@ static void filex_demo_entry(ULONG thread_input)
         filex_demo_report();
         (void)fx_media_close(&s_media);
     }
-    printf("[FileX] demo done\r\n");
+    printf("[FileX] demo done, status 0x%02X\r\n", status);
 
     /* Demo finished; suspend forever. */
     tx_thread_suspend(tx_thread_identify());

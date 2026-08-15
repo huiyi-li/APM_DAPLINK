@@ -28,7 +28,7 @@
 #define CONFIG_USB_ALIGN_SIZE 4
 #endif
 
-#define CONFIG_USB_DWC2_DMA_ENABLE
+// #define CONFIG_USB_DWC2_DMA_ENABLE
 #define CONFIG_USB_HS
 //#define CONFIG_USB_FS
 
@@ -113,7 +113,7 @@
 // #define CONFIG_USBDEV_MSC_POLLING
 
 /* move msc read & write from isr to thread */
-// #define CONFIG_USBDEV_MSC_THREAD
+#define CONFIG_USBDEV_MSC_THREAD
 
 #ifndef CONFIG_USBDEV_MSC_PRIO
 #define CONFIG_USBDEV_MSC_PRIO 4
@@ -254,7 +254,7 @@
 #endif
 #else
 #ifndef CONFIG_USBDEV_EP_NUM
-#define CONFIG_USBDEV_EP_NUM 7
+#define CONFIG_USBDEV_EP_NUM 8
 #endif
 #endif
 
@@ -297,7 +297,7 @@
  #define CONFIG_USB_DWC2_TX8_FIFO_SIZE (512 / 4)
  #endif
 
-// #define CONFIG_USB_DWC2_DMA_ENABLE
+// // #define CONFIG_USB_DWC2_DMA_ENABLE
 
 /* ---------------- MUSB Configuration ---------------- */
 // #define CONFIG_USB_MUSB_SUNXI

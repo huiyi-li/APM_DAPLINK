@@ -5,15 +5,20 @@
 
 #include "apm32f4xx.h"
 #include "bsp_w25qxx.h"
+#include "tx_api.h"
 
 /*
  * FileX driver for the W25Q128 SPI NOR flash.
  *
  * Layout: partition offset (1MB) + FAT volume (512B logical sectors).
- * W25Q erase granularity is 4KB, so writes go through a two-slot
- * 4KB block cache: a 512B sector update is applied to a cached block,
- * and the whole block is erased + rewritten on flush. This avoids
- * write amplification and erase churn on FAT metadata updates.
+ * W25Q erase granularity is 4KB, so writes go through a block cache:
+ * a 512B sector update is applied to a cached 4KB block, and the whole
+ * block is erased + rewritten when it is evicted. This avoids write
+ * amplification on FAT metadata updates.
+ *
+ * The same LBA view is exported (fx_spi_flash_lba_*) for the USB MSC
+ * class so the host sees exactly the volume FileX formatted. All
+ * access (FileX driver callbacks and MSC) is serialized by a mutex.
  */
 
 /* Number of cached 4KB blocks. */
@@ -28,18 +33,24 @@ typedef struct
 } FX_SPI_FLASH_CACHE_T;
 
 static FX_SPI_FLASH_CACHE_T s_cache[FX_SPI_FLASH_CACHE_SLOTS];
+static TX_MUTEX s_mutex;
+static bool     s_mutex_ready;
 
-static uint32_t fx_spi_flash_logical_sector(FX_MEDIA *media_ptr)
+
+static void fx_spi_flash_lock(void)
 {
-    return media_ptr->fx_media_driver_logical_sector +
-           media_ptr->fx_media_hidden_sectors;
+    if (s_mutex_ready)
+    {
+        (void)tx_mutex_get(&s_mutex, TX_WAIT_FOREVER);
+    }
 }
 
-static uint32_t fx_spi_flash_physical_address(FX_MEDIA *media_ptr)
+static void fx_spi_flash_unlock(void)
 {
-    return FX_SPI_FLASH_PARTITION_OFFSET +
-           (fx_spi_flash_logical_sector(media_ptr) *
-            (uint32_t)media_ptr->fx_media_bytes_per_sector);
+    if (s_mutex_ready)
+    {
+        (void)tx_mutex_put(&s_mutex);
+    }
 }
 
 static void fx_spi_flash_cache_reset(void)
@@ -64,11 +75,35 @@ static bool fx_spi_flash_cache_hit(uint32_t block, uint32_t *slot)
     return false;
 }
 
-static void fx_spi_flash_writeback_slot(FX_MEDIA *media_ptr, uint32_t slot);
+/* Write a dirty cache slot back to flash: erase the 4KB block, then
+ * program it (bsp_w25qxx_write handles page boundaries). */
+static int fx_spi_flash_writeback_slot(uint32_t slot)
+{
+    const uint32_t address = FX_SPI_FLASH_PARTITION_OFFSET +
+                             (s_cache[slot].block * FX_SPI_FLASH_BLOCK_SIZE);
+    BSP_W25QXX_STATUS_T status;
+
+    if (!s_cache[slot].valid || !s_cache[slot].dirty)
+    {
+        return 0;
+    }
+    status = bsp_w25qxx_erase_sector(address);
+    if (status == BSP_W25QXX_OK)
+    {
+        status = bsp_w25qxx_write(address, s_cache[slot].data,
+                                  FX_SPI_FLASH_BLOCK_SIZE);
+    }
+    if (status != BSP_W25QXX_OK)
+    {
+        return -1;
+    }
+    s_cache[slot].dirty = false;
+    return 0;
+}
 
 /* Pick a cache slot to evict: prefer an unused one, then a clean one,
  * otherwise flush the first slot. */
-static uint32_t fx_spi_flash_cache_pick_slot(FX_MEDIA *media_ptr)
+static uint32_t fx_spi_flash_cache_pick_slot(void)
 {
     uint32_t clean = FX_SPI_FLASH_CACHE_SLOTS;
 
@@ -89,13 +124,12 @@ static uint32_t fx_spi_flash_cache_pick_slot(FX_MEDIA *media_ptr)
     }
 
     /* All slots dirty: write back slot 0 and reuse it. */
-    fx_spi_flash_writeback_slot(media_ptr, 0U);
+    (void)fx_spi_flash_writeback_slot(0U);
     return 0U;
 }
 
 /* Load a physical 4KB block into a cache slot. */
-static bool fx_spi_flash_cache_load(FX_MEDIA *media_ptr, uint32_t slot,
-                                    uint32_t block)
+static bool fx_spi_flash_cache_load(uint32_t slot, uint32_t block)
 {
     const uint32_t address = FX_SPI_FLASH_PARTITION_OFFSET +
                              (block * FX_SPI_FLASH_BLOCK_SIZE);
@@ -108,200 +142,255 @@ static bool fx_spi_flash_cache_load(FX_MEDIA *media_ptr, uint32_t slot,
     s_cache[slot].block = block;
     s_cache[slot].valid = true;
     s_cache[slot].dirty = false;
-    (void)media_ptr;
     return true;
-}
-
-/* Write a dirty cache slot back to flash: erase the 4KB block, then
- * program it (bsp_w25qxx_write handles page boundaries). */
-static void fx_spi_flash_writeback_slot(FX_MEDIA *media_ptr, uint32_t slot)
-{
-    const uint32_t address = FX_SPI_FLASH_PARTITION_OFFSET +
-                             (s_cache[slot].block * FX_SPI_FLASH_BLOCK_SIZE);
-    BSP_W25QXX_STATUS_T status;
-
-    if (!s_cache[slot].valid || !s_cache[slot].dirty)
-    {
-        return;
-    }
-    status = bsp_w25qxx_erase_sector(address);
-    if (status == BSP_W25QXX_OK)
-    {
-        status = bsp_w25qxx_write(address, s_cache[slot].data,
-                                  FX_SPI_FLASH_BLOCK_SIZE);
-    }
-    if (status != BSP_W25QXX_OK)
-    {
-        media_ptr->fx_media_driver_status = FX_IO_ERROR;
-        return;
-    }
-    s_cache[slot].dirty = false;
 }
 
 /* Ensure the block containing a logical sector is cached; returns the
  * slot index or -1 on error. */
-static int32_t fx_spi_flash_cache_ensure(FX_MEDIA *media_ptr,
-                                         uint32_t sector, uint32_t *slot)
+static int32_t fx_spi_flash_cache_ensure(uint32_t sector, uint32_t *slot)
 {
     const uint32_t block = sector / FX_SPI_FLASH_SECTORS_PER_BLOCK;
+    uint32_t pick;
 
     if (fx_spi_flash_cache_hit(block, slot))
     {
         return 0;
     }
+    pick = fx_spi_flash_cache_pick_slot();
+    if (!fx_spi_flash_cache_load(pick, block))
     {
-        const uint32_t pick = fx_spi_flash_cache_pick_slot(media_ptr);
+        return -1;
+    }
+    *slot = pick;
+    return 0;
+}
 
-        if (!fx_spi_flash_cache_load(media_ptr, pick, block))
+/* Read one (or more contiguous) 512B sectors from the cache. */
+static int fx_spi_flash_sector_read_raw(uint32_t sector, uint8_t *buffer,
+                                        uint32_t count)
+{
+    while (count > 0U)
+    {
+        const uint32_t offset_in_block = (sector % FX_SPI_FLASH_SECTORS_PER_BLOCK) *
+                                         FX_SPI_FLASH_SECTOR_SIZE;
+        uint32_t slot;
+
+        if (fx_spi_flash_cache_ensure(sector, &slot) != 0)
         {
             return -1;
         }
-        *slot = pick;
+        (void)memcpy(buffer, &s_cache[slot].data[offset_in_block],
+                     FX_SPI_FLASH_SECTOR_SIZE);
+        ++sector;
+        buffer += FX_SPI_FLASH_SECTOR_SIZE;
+        --count;
     }
     return 0;
 }
 
-static void fx_spi_flash_sector_read(FX_MEDIA *media_ptr)
+/* Write one (or more contiguous) 512B sectors through the cache. */
+static int fx_spi_flash_sector_write_raw(uint32_t sector,
+                                         const uint8_t *buffer,
+                                         uint32_t count)
 {
-    const uint32_t sector = fx_spi_flash_logical_sector(media_ptr);
-    const uint32_t offset_in_block = (sector % FX_SPI_FLASH_SECTORS_PER_BLOCK) *
-                                     (uint32_t)media_ptr->fx_media_bytes_per_sector;
-    uint32_t slot;
-    const size_t size = (size_t)media_ptr->fx_media_driver_sectors *
-                        (size_t)media_ptr->fx_media_bytes_per_sector;
-
-    if (fx_spi_flash_cache_ensure(media_ptr, sector, &slot) != 0)
+    while (count > 0U)
     {
-        media_ptr->fx_media_driver_status = FX_IO_ERROR;
-        return;
+        const uint32_t offset_in_block = (sector % FX_SPI_FLASH_SECTORS_PER_BLOCK) *
+                                         FX_SPI_FLASH_SECTOR_SIZE;
+        uint32_t slot;
+
+        if (fx_spi_flash_cache_ensure(sector, &slot) != 0)
+        {
+            return -1;
+        }
+        (void)memcpy(&s_cache[slot].data[offset_in_block], buffer,
+                     FX_SPI_FLASH_SECTOR_SIZE);
+        s_cache[slot].dirty = true;
+        ++sector;
+        buffer += FX_SPI_FLASH_SECTOR_SIZE;
+        --count;
     }
-    (void)memcpy(media_ptr->fx_media_driver_buffer,
-                 &s_cache[slot].data[offset_in_block], size);
-    media_ptr->fx_media_driver_status = FX_SUCCESS;
+    return 0;
 }
 
-static void fx_spi_flash_sector_write(FX_MEDIA *media_ptr)
-{
-    const uint32_t sector = fx_spi_flash_logical_sector(media_ptr);
-    const uint32_t offset_in_block = (sector % FX_SPI_FLASH_SECTORS_PER_BLOCK) *
-                                     (uint32_t)media_ptr->fx_media_bytes_per_sector;
-    uint32_t slot;
-    const size_t size = (size_t)media_ptr->fx_media_driver_sectors *
-                        (size_t)media_ptr->fx_media_bytes_per_sector;
-
-    if (fx_spi_flash_cache_ensure(media_ptr, sector, &slot) != 0)
-    {
-        media_ptr->fx_media_driver_status = FX_IO_ERROR;
-        return;
-    }
-    (void)memcpy(&s_cache[slot].data[offset_in_block],
-                 media_ptr->fx_media_driver_buffer, size);
-    s_cache[slot].dirty = true;
-    media_ptr->fx_media_driver_status = FX_SUCCESS;
-}
-
-static void fx_spi_flash_flush(FX_MEDIA *media_ptr)
+static void fx_spi_flash_flush_all(void)
 {
     for (uint32_t i = 0U; i < FX_SPI_FLASH_CACHE_SLOTS; ++i)
     {
-        fx_spi_flash_writeback_slot(media_ptr, i);
+        (void)fx_spi_flash_writeback_slot(i);
     }
-    media_ptr->fx_media_driver_status = FX_SUCCESS;
 }
 
-static void fx_spi_flash_boot_read(FX_MEDIA *media_ptr)
+/* ------------------------------------------------------------------ */
+/* LBA API shared with the USB MSC class                              */
+/* ------------------------------------------------------------------ */
+
+int fx_spi_flash_lba_read(uint32_t lba, void *buffer, uint32_t count)
 {
-    /* Boot sector is the first 512 bytes of the partition. */
-    const uint32_t address = FX_SPI_FLASH_PARTITION_OFFSET;
-    uint8_t *boot = media_ptr->fx_media_driver_buffer;
+    int result;
 
-    if (bsp_w25qxx_read(address, boot, FX_SPI_FLASH_SECTOR_SIZE) != BSP_W25QXX_OK)
+    if ((buffer == NULL) || (count == 0U) ||
+        (lba + count > FX_SPI_FLASH_PARTITION_SECTORS))
     {
-        media_ptr->fx_media_driver_status = FX_IO_ERROR;
-        return;
+        return -1;
     }
+    fx_spi_flash_lock();
+    result = fx_spi_flash_sector_read_raw(lba, (uint8_t *)buffer, count);
+    fx_spi_flash_unlock();
+    return result;
+}
 
-    /* Validate the boot signature (jump instruction). */
-    if ((boot[0] != (UCHAR)0xEB) ||
-        ((boot[1] != (UCHAR)0x34) && (boot[1] != (UCHAR)0x76)) ||
-        (boot[2] != (UCHAR)0x90))
+int fx_spi_flash_lba_write(uint32_t lba, const void *buffer, uint32_t count)
+{
+    int result;
+
+    if ((buffer == NULL) || (count == 0U) ||
+        (lba + count > FX_SPI_FLASH_PARTITION_SECTORS))
     {
-        media_ptr->fx_media_driver_status = FX_MEDIA_INVALID;
-        return;
+        return -1;
     }
+    fx_spi_flash_lock();
+    result = fx_spi_flash_sector_write_raw(lba, (const uint8_t *)buffer, count);
+    fx_spi_flash_unlock();
+    return result;
+}
 
-    /* The cached sector size must fit the caller's buffer. */
+uint32_t fx_spi_flash_lba_count(void)
+{
+    return FX_SPI_FLASH_PARTITION_SECTORS;
+}
+
+void fx_spi_flash_sys_init(void)
+{
+    if (!s_mutex_ready)
     {
-        const UINT bytes_per_sector = (UINT)((boot[11] << 8) | boot[12]);
-
-        if (bytes_per_sector > media_ptr->fx_media_memory_size)
+        if (tx_mutex_create(&s_mutex, "fx flash", TX_NO_INHERIT) == TX_SUCCESS)
         {
-            media_ptr->fx_media_driver_status = FX_BUFFER_ERROR;
-            return;
+            s_mutex_ready = true;
         }
     }
-    media_ptr->fx_media_driver_status = FX_SUCCESS;
 }
 
-static void fx_spi_flash_boot_write(FX_MEDIA *media_ptr)
-{
-    const uint32_t sector = fx_spi_flash_logical_sector(media_ptr);
-    uint32_t slot;
-    const uint32_t offset_in_block = (sector % FX_SPI_FLASH_SECTORS_PER_BLOCK) *
-                                     (uint32_t)media_ptr->fx_media_bytes_per_sector;
-
-    if (fx_spi_flash_cache_ensure(media_ptr, sector, &slot) != 0)
-    {
-        media_ptr->fx_media_driver_status = FX_IO_ERROR;
-        return;
-    }
-    (void)memcpy(&s_cache[slot].data[offset_in_block],
-                 media_ptr->fx_media_driver_buffer,
-                 (size_t)media_ptr->fx_media_bytes_per_sector);
-    s_cache[slot].dirty = true;
-    fx_spi_flash_writeback_slot(media_ptr, slot);
-    media_ptr->fx_media_driver_status = FX_SUCCESS;
-}
+/* ------------------------------------------------------------------ */
+/* FileX driver callbacks                                             */
+/* ------------------------------------------------------------------ */
 
 void fx_spi_flash_driver(FX_MEDIA *media_ptr)
 {
+    const uint32_t sector = media_ptr->fx_media_driver_logical_sector;
+    const uint32_t count = media_ptr->fx_media_driver_sectors;
+
     switch (media_ptr->fx_media_driver_request)
     {
     case FX_DRIVER_INIT:
+        fx_spi_flash_lock();
         fx_spi_flash_cache_reset();
         if (bsp_w25qxx_init() != BSP_W25QXX_OK)
         {
             media_ptr->fx_media_driver_status = FX_IO_ERROR;
-            break;
         }
-        media_ptr->fx_media_driver_free_sector_update = FX_FALSE;
-        media_ptr->fx_media_driver_write_protect = FX_FALSE;
-        media_ptr->fx_media_driver_status = FX_SUCCESS;
+        else
+        {
+            media_ptr->fx_media_driver_free_sector_update = FX_FALSE;
+            media_ptr->fx_media_driver_write_protect = FX_FALSE;
+            media_ptr->fx_media_driver_status = FX_SUCCESS;
+        }
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_READ:
-        fx_spi_flash_sector_read(media_ptr);
+        fx_spi_flash_lock();
+        if (fx_spi_flash_sector_read_raw(sector, media_ptr->fx_media_driver_buffer,
+                                         count) != 0)
+        {
+            media_ptr->fx_media_driver_status = FX_IO_ERROR;
+        }
+        else
+        {
+            media_ptr->fx_media_driver_status = FX_SUCCESS;
+        }
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_WRITE:
-        fx_spi_flash_sector_write(media_ptr);
+        fx_spi_flash_lock();
+        if (fx_spi_flash_sector_write_raw(sector, media_ptr->fx_media_driver_buffer,
+                                          count) != 0)
+        {
+            media_ptr->fx_media_driver_status = FX_IO_ERROR;
+        }
+        else
+        {
+            media_ptr->fx_media_driver_status = FX_SUCCESS;
+        }
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_FLUSH:
-        fx_spi_flash_flush(media_ptr);
+        fx_spi_flash_lock();
+        fx_spi_flash_flush_all();
+        media_ptr->fx_media_driver_status = FX_SUCCESS;
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_ABORT:
+        fx_spi_flash_lock();
         fx_spi_flash_cache_reset();
         media_ptr->fx_media_driver_status = FX_SUCCESS;
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_BOOT_READ:
-        fx_spi_flash_boot_read(media_ptr);
+    {
+        /* Boot sector is the first 512 bytes of the partition. */
+        uint8_t *boot = media_ptr->fx_media_driver_buffer;
+
+        fx_spi_flash_lock();
+        if (bsp_w25qxx_read(FX_SPI_FLASH_PARTITION_OFFSET, boot,
+                            FX_SPI_FLASH_SECTOR_SIZE) != BSP_W25QXX_OK)
+        {
+            media_ptr->fx_media_driver_status = FX_IO_ERROR;
+        }
+        else
+        {
+            /* Validate the boot signature (jump instruction). */
+            if ((boot[0] != (UCHAR)0xEB) ||
+                ((boot[1] != (UCHAR)0x34) && (boot[1] != (UCHAR)0x76)) ||
+                (boot[2] != (UCHAR)0x90))
+            {
+                media_ptr->fx_media_driver_status = FX_MEDIA_INVALID;
+            }
+            else
+            {
+                const UINT bytes_per_sector = (UINT)((boot[12] << 8) | boot[11]);
+
+                if (bytes_per_sector > media_ptr->fx_media_memory_size)
+                {
+                    media_ptr->fx_media_driver_status = FX_BUFFER_ERROR;
+                }
+                else
+                {
+                    media_ptr->fx_media_driver_status = FX_SUCCESS;
+                }
+            }
+        }
+        fx_spi_flash_unlock();
         break;
+    }
 
     case FX_DRIVER_BOOT_WRITE:
-        fx_spi_flash_boot_write(media_ptr);
+        fx_spi_flash_lock();
+        if (fx_spi_flash_sector_write_raw(sector, media_ptr->fx_media_driver_buffer,
+                                          count) != 0)
+        {
+            media_ptr->fx_media_driver_status = FX_IO_ERROR;
+        }
+        else
+        {
+            fx_spi_flash_flush_all();
+            media_ptr->fx_media_driver_status = FX_SUCCESS;
+        }
+        fx_spi_flash_unlock();
         break;
 
     case FX_DRIVER_RELEASE_SECTORS:

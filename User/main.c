@@ -46,6 +46,7 @@
 #include "lvgl_port.h"
 #include "lvgl_demo.h"
 #include "filex_demo.h"
+#include "fx_spi_flash_driver.h"
 
 #define VECT_TAB_OFFSET  0x00
 
@@ -78,10 +79,12 @@ TX_SEMAPHORE            semaphore_0;
 TX_MUTEX                mutex_0;
 TX_EVENT_FLAGS_GROUP    event_flags_0;
 TX_BYTE_POOL            byte_pool_0;
+TX_BYTE_POOL            usb_byte_pool;
 TX_BLOCK_POOL           block_pool_0;
 
 #define DEMO_STACK_SIZE         1024
-#define DEMO_BYTE_POOL_SIZE     16384
+#define DEMO_BYTE_POOL_SIZE     12288
+#define USB_BYTE_POOL_SIZE      8192
 #define DEMO_BLOCK_POOL_SIZE    100
 #define DEMO_QUEUE_SIZE         100
 
@@ -422,6 +425,8 @@ void tx_application_define(void *first_unused_memory)
 
     /* Create a byte memory pool from which to allocate the thread stacks.  */
     tx_byte_pool_create(&byte_pool_0, "byte pool 0", first_unused_memory, DEMO_BYTE_POOL_SIZE);
+    tx_byte_pool_create(&usb_byte_pool, "usb byte pool", (VOID *)((uint32_t)first_unused_memory + DEMO_BYTE_POOL_SIZE), USB_BYTE_POOL_SIZE);
+    fx_spi_flash_sys_init();
 
     /* Put system definition stuff in here, e.g. thread creates and other assorted
        create information.  */

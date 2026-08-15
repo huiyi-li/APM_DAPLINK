@@ -4,6 +4,7 @@
 #include "bsp_uart1.h"
 #include "bsp_cdc_uart.h"
 #include "bsp_printf.h"
+#include "fx_spi_flash_driver.h"
 
 #define USB_CONFIG_SIZE (9 + CMSIS_DAP_INTERFACE_SIZE + 2U * CDC_ACM_DESCRIPTOR_LEN + \
                         CONFIG_MSC_DESCRIPTOR_LEN + CONFIG_HID_DESCRIPTOR_LEN)
@@ -868,32 +869,45 @@ __WEAK void chry_dap_usb2uart_uart_send_bydma(uint8_t *data, uint16_t len)
 }
 
 #ifdef CONFIG_CHERRYDAP_USE_MSC
-#define BLOCK_SIZE  512
-#define BLOCK_COUNT 10
+/* USB MSC class over the W25Q128 FAT volume (the same volume FileX
+ * formatted). LBA 0 is the volume boot sector; writes to it are
+ * rejected so the filesystem can only be (re)formatted by FileX.
+ * Access goes through the shared flash driver cache/mutex. */
 
-typedef struct
-{
-    uint8_t BlockSpace[BLOCK_SIZE];
-} BLOCK_TYPE;
+#define MSC_BLOCK_SIZE  512U
 
-BLOCK_TYPE mass_block[BLOCK_COUNT];
-
-void usbd_msc_get_cap(uint8_t lun, uint32_t *block_num, uint16_t *block_size)
+void usbd_msc_get_cap(uint8_t busid, uint8_t lun, uint32_t *block_num, uint32_t *block_size)
 {
-    *block_num = 1000; //Pretend having so many buffer,not has actually.
-    *block_size = BLOCK_SIZE;
-}
-int usbd_msc_sector_read(uint32_t sector, uint8_t *buffer, uint32_t length)
-{
-    if (sector < 10)
-        memcpy(buffer, mass_block[sector].BlockSpace, length);
-    return 0;
+    (void)busid;
+    (void)lun;
+    *block_num = fx_spi_flash_lba_count();
+    *block_size = MSC_BLOCK_SIZE;
 }
 
-int usbd_msc_sector_write(uint32_t sector, uint8_t *buffer, uint32_t length)
+int usbd_msc_sector_read(uint8_t busid, uint8_t lun, uint32_t sector, uint8_t *buffer, uint32_t length)
 {
-    if (sector < 10)
-        memcpy(mass_block[sector].BlockSpace, buffer, length);
-    return 0;
+    (void)busid;
+    (void)lun;
+    if ((length % MSC_BLOCK_SIZE) != 0U)
+    {
+        return -1;
+    }
+    return fx_spi_flash_lba_read(sector, buffer, length / MSC_BLOCK_SIZE);
+}
+
+int usbd_msc_sector_write(uint8_t busid, uint8_t lun, uint32_t sector, uint8_t *buffer, uint32_t length)
+{
+    (void)busid;
+    (void)lun;
+    if ((length % MSC_BLOCK_SIZE) != 0U)
+    {
+        return -1;
+    }
+    if (sector == 0U)
+    {
+        /* Keep formatting FileX-only. */
+        return -1;
+    }
+    return fx_spi_flash_lba_write(sector, buffer, length / MSC_BLOCK_SIZE);
 }
 #endif

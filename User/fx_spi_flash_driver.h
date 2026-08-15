@@ -1,6 +1,8 @@
 #ifndef FX_SPI_FLASH_DRIVER_H
 #define FX_SPI_FLASH_DRIVER_H
 
+#include <stdint.h>
+
 #include "fx_api.h"
 
 /*
@@ -32,5 +34,14 @@
 #define FX_SPI_FLASH_MEDIA_NAME           "W25Q128"
 
 void fx_spi_flash_driver(FX_MEDIA *media_ptr);
+
+/* LBA access shared by the MSC class (same volume FileX uses).
+ * Returns 0 on success, non-zero on error. */
+int fx_spi_flash_lba_read(uint32_t lba, void *buffer, uint32_t count);
+int fx_spi_flash_lba_write(uint32_t lba, const void *buffer, uint32_t count);
+uint32_t fx_spi_flash_lba_count(void);
+
+/* Create the internal mutex (call once from tx_application_define). */
+void fx_spi_flash_sys_init(void);
 
 #endif

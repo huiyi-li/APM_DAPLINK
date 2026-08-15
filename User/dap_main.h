@@ -25,7 +25,7 @@
 #define CDC1_OUT_EP 0x05
 #define CDC1_INT_EP 0x86
 
-#define MSC_IN_EP  0x86
+#define MSC_IN_EP  0x87
 #define MSC_OUT_EP 0x07
 
 #define CONFIG_DAP_HID
@@ -50,10 +50,12 @@
 #define CONFIG_HID_INTF_NUM         0
 #endif
 
+#define CONFIG_CHERRYDAP_USE_MSC
+
 #ifdef CONFIG_CHERRYDAP_USE_MSC
 #define CONFIG_MSC_DESCRIPTOR_LEN CDC_ACM_DESCRIPTOR_LEN
 #define CONFIG_MSC_INTF_NUM       1
-#define MSC_INTF_NUM              (0x02 + 1)
+#define MSC_INTF_NUM              6
 #else
 #define CONFIG_MSC_DESCRIPTOR_LEN 0
 #define CONFIG_MSC_INTF_NUM       0

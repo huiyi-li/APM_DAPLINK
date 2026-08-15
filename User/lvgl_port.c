@@ -16,10 +16,11 @@
 
 #define LVGL_DISP_WIDTH  DISPLAY_PORT_WIDTH
 #define LVGL_DISP_HEIGHT DISPLAY_PORT_HEIGHT
-#define LVGL_BUF_ROWS    16U
+/* 15 rows x 240 x 2B fits the remaining CCMRAM (64KB total). */
+#define LVGL_BUF_ROWS    15U
 
 static lv_display_t *s_display;
-static uint8_t s_render_buf[LVGL_DISP_WIDTH * LVGL_BUF_ROWS * 2U];
+static uint8_t s_render_buf[LVGL_DISP_WIDTH * LVGL_BUF_ROWS * 2U] __attribute__((section(".ccmram")));
 static bool s_ready;
 
 static void lvgl_flush_cb(lv_display_t *display,

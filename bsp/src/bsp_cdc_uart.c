@@ -18,8 +18,8 @@ const BSP_CDC_UART_CONFIG_T g_bsp_cdc_uart_default_config =
     .stop_bits = BSP_CDC_UART_STOP_BITS_1,
 };
 
-static uint8_t s_rx_buffer[CDC_UART_BUFFER_SIZE];
-static uint8_t s_tx_buffer[CDC_UART_BUFFER_SIZE];
+static uint8_t s_rx_buffer[CDC_UART_BUFFER_SIZE] __attribute__((section(".ccmram")));
+static uint8_t s_tx_buffer[CDC_UART_BUFFER_SIZE] __attribute__((section(".ccmram")));
 static volatile uint16_t s_rx_head;
 static volatile uint16_t s_rx_tail;
 static volatile uint16_t s_tx_head;

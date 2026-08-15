@@ -181,8 +181,8 @@ ST7789_STATUS_T st7789_set_window(ST7789_T *display,
 }
 
 /* Static buffers so large chunk sizes do not stress the caller's stack. */
-static uint8_t s_pixel_buffer[ST7789_PIXEL_CHUNK * 2U];
-static uint16_t s_fill_buffer[ST7789_PIXEL_CHUNK];
+static uint8_t s_pixel_buffer[ST7789_PIXEL_CHUNK * 2U] __attribute__((section(".ccmram")));
+static uint16_t s_fill_buffer[ST7789_PIXEL_CHUNK] __attribute__((section(".ccmram")));
 
 ST7789_STATUS_T st7789_write_pixels(ST7789_T *display,
                                     const uint16_t *pixels,

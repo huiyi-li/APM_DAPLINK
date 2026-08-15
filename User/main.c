@@ -378,8 +378,10 @@ const char * const g_hello = "Hello, string is Initialized!\r\n";
  */
 int main(void)
 {
-    BSP_W25Q64_STATUS_T flash_status;
+    BSP_W25QXX_STATUS_T flash_status;
     uint32_t flash_jedec_id = 0U;
+    uint8_t test_pattern[300];
+    uint8_t read_back[300];
 
     bsp_sysclk_init();
     bsp_led_init();
@@ -390,15 +392,107 @@ int main(void)
     bsp_uart1_init(115200U);
     bsp_debug_uart_write((const uint8_t *)g_hello, strlen(g_hello));
     printf("Hello, world!\r\n");
-    flash_status = bsp_w25q64_init();
-    if (flash_status == BSP_W25Q64_OK)
+
+    /* ---- W25Q128 SPI flash test: read ID, erase, write, verify ---- */
+    flash_status = bsp_w25qxx_init();
+    if (flash_status == BSP_W25QXX_OK)
     {
-        (void)bsp_w25q64_read_jedec_id(&flash_jedec_id);
-        printf("W25Q64 JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
+        (void)bsp_w25qxx_read_jedec_id(&flash_jedec_id);
+        printf("W25Q JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
+        if (flash_jedec_id == BSP_W25QXX_JEDEC_ID)
+        {
+            printf("W25Q capacity: %lu bytes\r\n", (unsigned long)BSP_W25QXX_CAPACITY);
+
+            printf("W25Q erase sector 0x000000...\r\n");
+            flash_status = bsp_w25qxx_erase_sector(0x000000U);
+            printf("W25Q erase: %s\r\n",
+                   (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
+
+            for (uint32_t i = 0U; i < sizeof(test_pattern); ++i)
+            {
+                test_pattern[i] = (uint8_t)(i * 7U + 1U);
+            }
+            flash_status = bsp_w25qxx_write(0x000000U, test_pattern, sizeof(test_pattern));
+            printf("W25Q write 300B (cross page): %s\r\n",
+                   (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
+
+            flash_status = bsp_w25qxx_read(0x000000U, read_back, sizeof(read_back));
+            if ((flash_status == BSP_W25QXX_OK) &&
+                (memcmp(test_pattern, read_back, sizeof(test_pattern)) == 0))
+            {
+                printf("W25Q verify: PASS\r\n");
+            }
+            else
+            {
+                printf("W25Q verify: FAIL (%d)\r\n", (int)flash_status);
+            }
+
+            /* ---- performance test ---- */
+            {
+                uint8_t perf_buf[512];
+                uint32_t t0, elapsed;
+                uint32_t addr;
+                uint32_t perf_size = 256U * 1024U;
+
+                /* read 256KB throughput */
+                for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                {
+                    perf_buf[i] = (uint8_t)(i & 0xFFU);
+                }
+                t0 = DWT->CYCCNT;
+                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+                {
+                    (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
+                }
+                elapsed = (uint32_t)(DWT->CYCCNT - t0);
+                {
+                    const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
+                    printf("W25Q read 256KB: %lu ms, %lu KB/s\r\n",
+                           (unsigned long)elapsed_ms,
+                           (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
+                }
+
+                /* erase + write 256KB throughput */
+                t0 = DWT->CYCCNT;
+                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += BSP_W25QXX_SECTOR_SIZE)
+                {
+                    (void)bsp_w25qxx_erase_sector(addr);
+                }
+                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+                {
+                    for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                    {
+                        perf_buf[i] = (uint8_t)(addr + i);
+                    }
+                    (void)bsp_w25qxx_write(addr, perf_buf, sizeof(perf_buf));
+                }
+                elapsed = (uint32_t)(DWT->CYCCNT - t0);
+                {
+                    const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
+                    printf("W25Q erase+write 256KB: %lu ms, %lu KB/s\r\n",
+                           (unsigned long)elapsed_ms,
+                           (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
+                }
+            }
+        }
+        else
+        {
+            printf("W25Q wrong chip (expected %06lX)\r\n",
+                   (unsigned long)BSP_W25QXX_JEDEC_ID);
+        }
     }
     else
     {
-        printf("W25Q64 init failed: %d\r\n", (int)flash_status);
+        printf("W25Q init failed: %d\r\n", (int)flash_status);
+        /* Re-read the raw ID to see what the bus actually returns. */
+        if (bsp_w25qxx_read_jedec_id(&flash_jedec_id) == BSP_W25QXX_OK)
+        {
+            printf("W25Q raw ID: %06lX\r\n", (unsigned long)flash_jedec_id);
+        }
+        else
+        {
+            printf("W25Q raw ID read failed (bus timeout)\r\n");
+        }
     }
     tx_kernel_enter();
 

@@ -31,3 +31,6 @@ target_sources(${LIB_NAME} PRIVATE
 target_compile_definitions(${LIB_NAME} PRIVATE
 
 )
+
+# W25Q driver is byte-loop heavy; optimize it.
+set_source_files_properties(src/bsp_w25qxx.c PROPERTIES COMPILE_OPTIONS -O2)

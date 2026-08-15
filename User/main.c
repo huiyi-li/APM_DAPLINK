@@ -48,6 +48,8 @@
 #include "filex_demo.h"
 #include "fx_spi_flash_driver.h"
 
+
+
 #define VECT_TAB_OFFSET  0x00
 
 // void __attribute__((constructor)) FPU_Init(void) 
@@ -83,7 +85,7 @@ TX_BYTE_POOL            usb_byte_pool;
 TX_BLOCK_POOL           block_pool_0;
 
 #define DEMO_STACK_SIZE         1024
-#define DEMO_BYTE_POOL_SIZE     12288
+#define DEMO_BYTE_POOL_SIZE     16384
 #define USB_BYTE_POOL_SIZE      8192
 #define DEMO_BLOCK_POOL_SIZE    100
 #define DEMO_QUEUE_SIZE         100
@@ -636,7 +638,7 @@ int main(void)
     bsp_debug_uart_write((const uint8_t *)g_hello, strlen(g_hello));
     printf("Hello, world!\r\n");
 
-    /* Quick W25Q ID check only (full test runs in thread_w25q_test_entry). */
+    /* Quick W25Q ID check only. */
     if (bsp_w25qxx_init() == BSP_W25QXX_OK)
     {
         (void)bsp_w25qxx_read_jedec_id(&flash_jedec_id);

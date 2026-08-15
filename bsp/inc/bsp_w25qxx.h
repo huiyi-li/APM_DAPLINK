@@ -28,7 +28,7 @@
  *       routes flash DI to SPI1_MISO and DO to SPI1_MOSI)
  */
 #ifndef BSP_W25QXX_USE_SW_SPI
-#define BSP_W25QXX_USE_SW_SPI    1U
+#define BSP_W25QXX_USE_SW_SPI    0U
 #endif
 
 #if BSP_W25QXX_CHIP_W25Q64

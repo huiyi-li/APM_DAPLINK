@@ -19,7 +19,7 @@
 #define LVGL_BUF_ROWS    16U
 
 static lv_display_t *s_display;
-static uint8_t s_render_buf[LVGL_DISP_WIDTH * LVGL_BUF_ROWS * 2U] __attribute__((section(".ccmram")));
+static uint8_t s_render_buf[LVGL_DISP_WIDTH * LVGL_BUF_ROWS * 2U];
 static bool s_ready;
 
 static void lvgl_flush_cb(lv_display_t *display,

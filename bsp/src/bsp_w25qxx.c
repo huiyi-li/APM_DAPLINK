@@ -198,7 +198,7 @@ static void w25qxx_bus_init(void)
     spi_config.polarity = SPI_CLKPOL_LOW;
     spi_config.phase = SPI_CLKPHA_1EDGE;
     spi_config.nss = SPI_NSS_SOFT;
-    spi_config.baudrateDiv = SPI_BAUDRATE_DIV_4;
+    spi_config.baudrateDiv = SPI_BAUDRATE_DIV_2;
     spi_config.firstBit = SPI_FIRSTBIT_MSB;
     spi_config.crcPolynomial = 7U;
     SPI_Config(SPI1, &spi_config);
@@ -207,31 +207,103 @@ static void w25qxx_bus_init(void)
 
 static BSP_W25QXX_STATUS_T w25qxx_transfer(uint8_t tx_data, uint8_t *rx_data)
 {
-    W25QXX_TIMEOUT_T timeout;
+    uint32_t guard = 1000000U;
 
-    w25qxx_timeout_start(&timeout, W25QXX_SPI_TIMEOUT_MS);
-    while (SPI_I2S_ReadStatusFlag(SPI1, SPI_FLAG_TXBE) == RESET)
+    while (((SPI1->STS & SPI_FLAG_TXBE) == 0U) && (--guard != 0U))
     {
-        if (w25qxx_timeout_expired(&timeout))
-        {
-            return BSP_W25QXX_ERROR_TIMEOUT;
-        }
+    }
+    if (guard == 0U)
+    {
+        return BSP_W25QXX_ERROR_TIMEOUT;
     }
 
     SPI1->DATA = tx_data;
 
-    w25qxx_timeout_start(&timeout, W25QXX_SPI_TIMEOUT_MS);
-    while (SPI_I2S_ReadStatusFlag(SPI1, SPI_FLAG_RXBNE) == RESET)
+    guard = 1000000U;
+    while (((SPI1->STS & SPI_FLAG_RXBNE) == 0U) && (--guard != 0U))
     {
-        if (w25qxx_timeout_expired(&timeout))
-        {
-            return BSP_W25QXX_ERROR_TIMEOUT;
-        }
+    }
+    if (guard == 0U)
+    {
+        return BSP_W25QXX_ERROR_TIMEOUT;
     }
 
     if (rx_data != NULL)
     {
         *rx_data = (uint8_t)SPI1->DATA;
+    }
+    else
+    {
+        (void)SPI1->DATA;
+    }
+
+    return BSP_W25QXX_OK;
+}
+
+/* Pipelined full-duplex block transfer: byte i is received while byte
+ * i+1 is being shifted out, so only one RXBNE wait per byte. */
+static BSP_W25QXX_STATUS_T w25qxx_transfer_bulk(const uint8_t *tx_data,
+                                                uint8_t *rx_data,
+                                                uint32_t count)
+{
+    uint32_t guard;
+
+    if (count == 0U)
+    {
+        return BSP_W25QXX_OK;
+    }
+
+    guard = 1000000U;
+    while (((SPI1->STS & SPI_FLAG_TXBE) == 0U) && (--guard != 0U))
+    {
+    }
+    if (guard == 0U)
+    {
+        return BSP_W25QXX_ERROR_TIMEOUT;
+    }
+    SPI1->DATA = (tx_data != NULL) ? tx_data[0] : 0xFFU;
+
+    for (uint32_t i = 1U; i < count; ++i)
+    {
+        guard = 1000000U;
+        while (((SPI1->STS & SPI_FLAG_RXBNE) == 0U) && (--guard != 0U))
+        {
+        }
+        if (guard == 0U)
+        {
+            return BSP_W25QXX_ERROR_TIMEOUT;
+        }
+        if (rx_data != NULL)
+        {
+            rx_data[i - 1U] = (uint8_t)SPI1->DATA;
+        }
+        else
+        {
+            (void)SPI1->DATA;
+        }
+
+        guard = 1000000U;
+        while (((SPI1->STS & SPI_FLAG_TXBE) == 0U) && (--guard != 0U))
+        {
+        }
+        if (guard == 0U)
+        {
+            return BSP_W25QXX_ERROR_TIMEOUT;
+        }
+        SPI1->DATA = (tx_data != NULL) ? tx_data[i] : 0xFFU;
+    }
+
+    guard = 1000000U;
+    while (((SPI1->STS & SPI_FLAG_RXBNE) == 0U) && (--guard != 0U))
+    {
+    }
+    if (guard == 0U)
+    {
+        return BSP_W25QXX_ERROR_TIMEOUT;
+    }
+    if (rx_data != NULL)
+    {
+        rx_data[count - 1U] = (uint8_t)SPI1->DATA;
     }
     else
     {

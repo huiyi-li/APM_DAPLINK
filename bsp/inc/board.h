@@ -27,9 +27,12 @@
 #define BOARD_BUTTON_2_PIN               GPIO_PIN_5
 #define BOARD_BUTTON_GPIO_CLOCK          RCM_AHB1_PERIPH_GPIOE
 
-/* W25Q64 on SPI1. */
-#define BOARD_FLASH_CS_PORT             GPIOA
-#define BOARD_FLASH_CS_PIN              GPIO_PIN_4
+/* W25Q128 on reworked board (2026-08-16):
+ * CS on PB12, SCK on PA5, flash DO on PA6 (input), flash DI on PA7 (output).
+ * DO/DI were swapped versus the original layout. */
+#define BOARD_FLASH_CS_PORT             GPIOB
+#define BOARD_FLASH_CS_PIN              GPIO_PIN_12
+#define BOARD_FLASH_CS_PIN_SOURCE       GPIO_PIN_SOURCE_12
 #define BOARD_FLASH_SCK_PORT            GPIOA
 #define BOARD_FLASH_SCK_PIN             GPIO_PIN_5
 #define BOARD_FLASH_SCK_PIN_SOURCE      GPIO_PIN_SOURCE_5
@@ -39,7 +42,7 @@
 #define BOARD_FLASH_MOSI_PORT           GPIOA
 #define BOARD_FLASH_MOSI_PIN            GPIO_PIN_7
 #define BOARD_FLASH_MOSI_PIN_SOURCE     GPIO_PIN_SOURCE_7
-#define BOARD_FLASH_GPIO_CLOCK          RCM_AHB1_PERIPH_GPIOA
+#define BOARD_FLASH_GPIO_CLOCK          (RCM_AHB1_PERIPH_GPIOA | RCM_AHB1_PERIPH_GPIOB)
 
 /* Debug console on USART1. */
 #define BOARD_DEBUG_TX_PORT             GPIOA

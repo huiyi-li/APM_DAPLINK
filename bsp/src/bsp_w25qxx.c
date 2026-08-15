@@ -86,10 +86,11 @@ static void w25qxx_delay_us(uint32_t delay_us)
                            ((uint32_t)(bit_num) << 2U)))
 
 /* Software bit-bang SPI, mode 0 (CPOL=0, CPHA=0).
- * SCK on PA5, DI on PA6 (output to flash), DO on PA7 (input from flash). */
+ * SCK on PA5, flash DI driven from PA7 (output), flash DO sampled on PA6
+ * (input) after the DO/DI rework. */
 #define W25QXX_BB_SCK  W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_SCK_PORT->ODATA,  BOARD_FLASH_SCK_PIN_SOURCE)
-#define W25QXX_BB_DI   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MISO_PORT->ODATA, BOARD_FLASH_MISO_PIN_SOURCE)
-#define W25QXX_BB_DO   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MOSI_PORT->IDATA, BOARD_FLASH_MOSI_PIN_SOURCE)
+#define W25QXX_BB_DI   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MOSI_PORT->ODATA, BOARD_FLASH_MOSI_PIN_SOURCE)
+#define W25QXX_BB_DO   W25QXX_GPIO_BB((uint32_t)&BOARD_FLASH_MISO_PORT->IDATA, BOARD_FLASH_MISO_PIN_SOURCE)
 
 static void w25qxx_bus_init(void)
 {
@@ -99,26 +100,26 @@ static void w25qxx_bus_init(void)
 
     w25qxx_deselect();
 
-    /* SCK idle low, DI idle low */
+    /* SCK idle low, DI (PA7) idle low */
     GPIO_ResetBit(BOARD_FLASH_SCK_PORT, BOARD_FLASH_SCK_PIN);
-    GPIO_ResetBit(BOARD_FLASH_MISO_PORT, BOARD_FLASH_MISO_PIN);
+    GPIO_ResetBit(BOARD_FLASH_MOSI_PORT, BOARD_FLASH_MOSI_PIN);
 
     GPIO_ConfigStructInit(&gpio_config);
-    gpio_config.pin = BOARD_FLASH_SCK_PIN | BOARD_FLASH_MISO_PIN;
+    gpio_config.pin = BOARD_FLASH_SCK_PIN | BOARD_FLASH_MOSI_PIN;
     gpio_config.mode = GPIO_MODE_OUT;
     gpio_config.speed = GPIO_SPEED_50MHz;
     gpio_config.otype = GPIO_OTYPE_PP;
     gpio_config.pupd = GPIO_PUPD_NOPULL;
     GPIO_Config(BOARD_FLASH_SCK_PORT, &gpio_config);
 
-    /* DO (PA7): input */
+    /* DO (PA6): input from flash DO */
     GPIO_ConfigStructInit(&gpio_config);
-    gpio_config.pin = BOARD_FLASH_MOSI_PIN;
+    gpio_config.pin = BOARD_FLASH_MISO_PIN;
     gpio_config.mode = GPIO_MODE_IN;
     gpio_config.speed = GPIO_SPEED_50MHz;
     gpio_config.otype = GPIO_OTYPE_PP;
     gpio_config.pupd = GPIO_PUPD_NOPULL;
-    GPIO_Config(BOARD_FLASH_MOSI_PORT, &gpio_config);
+    GPIO_Config(BOARD_FLASH_MISO_PORT, &gpio_config);
 
     /* CS output */
     GPIO_ConfigStructInit(&gpio_config);

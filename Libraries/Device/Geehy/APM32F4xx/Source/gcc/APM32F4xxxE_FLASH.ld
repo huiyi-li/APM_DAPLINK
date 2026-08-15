@@ -140,9 +140,10 @@ SECTIONS
     _end_address_data = .;
   } >RAM AT> FLASH :data
 
-  _siccmram = LOADADDR(.ccmram);
-
-  .ccmram :
+  /* CPU-only CCMRAM (no DMA/external-master access possible). Kept as
+   * NOLOAD: contents are written by software before use (e.g. LVGL
+   * render buffer, LV_MEM_ADR pool), so no flash load copy is needed. */
+  .ccmram (NOLOAD) :
   {
     . = ALIGN(4);
     _sccmram = .;
@@ -151,7 +152,7 @@ SECTIONS
     
     . = ALIGN(4);
     _eccmram = .;
-  } >CCMRAM AT> FLASH :ccm
+  } >CCMRAM :ccm
   
   . = ALIGN(4);
   .bss :

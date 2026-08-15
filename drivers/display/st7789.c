@@ -11,7 +11,7 @@
 
 #define ST7789_WIDTH             240U
 #define ST7789_HEIGHT            240U
-#define ST7789_PIXEL_CHUNK       64U
+#define ST7789_PIXEL_CHUNK       1024U
 
 typedef struct
 {
@@ -180,11 +180,15 @@ ST7789_STATUS_T st7789_set_window(ST7789_T *display,
     return status;
 }
 
+/* Static buffers so large chunk sizes do not stress the caller's stack. */
+static uint8_t s_pixel_buffer[ST7789_PIXEL_CHUNK * 2U];
+static uint16_t s_fill_buffer[ST7789_PIXEL_CHUNK];
+
 ST7789_STATUS_T st7789_write_pixels(ST7789_T *display,
                                     const uint16_t *pixels,
                                     size_t pixel_count)
 {
-    uint8_t buffer[ST7789_PIXEL_CHUNK * 2U];
+    uint8_t *buffer = s_pixel_buffer;
 
     if ((display == NULL) || !display->initialized)
     {
@@ -221,7 +225,7 @@ ST7789_STATUS_T st7789_fill(ST7789_T *display,
                             uint16_t color,
                             size_t pixel_count)
 {
-    uint16_t pixels[ST7789_PIXEL_CHUNK];
+    uint16_t *pixels = s_fill_buffer;
 
     for (size_t i = 0U; i < ST7789_PIXEL_CHUNK; ++i)
     {

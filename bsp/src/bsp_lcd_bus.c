@@ -98,19 +98,21 @@ static BSP_LCD_BUS_STATUS_T lcd_bus_transport_init(void)
 
 static BSP_LCD_BUS_STATUS_T lcd_bus_transport_write(const uint8_t *data, size_t size)
 {
+    /* Direct register polling: the hardware guarantees TXBE/BSY to clear,
+     * so the function-call based flag wait is replaced for maximum speed. */
     for (size_t i = 0U; i < size; ++i)
     {
-        if (!lcd_bus_wait_flag(SPI_FLAG_TXBE, SET))
+        while ((SPI3->STS & SPI_FLAG_TXBE) == 0U)
         {
-            return BSP_LCD_BUS_ERROR_TIMEOUT;
         }
         SPI3->DATA = data[i];
     }
 
-    if (!lcd_bus_wait_flag(SPI_FLAG_TXBE, SET) ||
-        !lcd_bus_wait_flag(SPI_FLAG_BSY, RESET))
+    while ((SPI3->STS & SPI_FLAG_TXBE) == 0U)
     {
-        return BSP_LCD_BUS_ERROR_TIMEOUT;
+    }
+    while ((SPI3->STS & SPI_FLAG_BSY) != 0U)
+    {
     }
     return BSP_LCD_BUS_OK;
 }

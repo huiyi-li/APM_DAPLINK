@@ -40,6 +40,12 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/Libraries)
 add_subdirectory(third)
 add_subdirectory(${CMAKE_SOURCE_DIR}/bsp)
 add_subdirectory(${CMAKE_SOURCE_DIR}/third/CherryRB)
+set(CONFIG_LV_USE_THORVG_INTERNAL OFF CACHE BOOL "" FORCE)
+set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
+set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third/lvgl)
+# LVGL is big; build it optimized even in Debug builds to fit 512KB flash.
+target_compile_options(lvgl PRIVATE -O2)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_cmsis_headers)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_device_headers)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32f4xx_stdperiph)
@@ -48,6 +54,7 @@ target_link_libraries(bsp PRIVATE apm32_cmsis_headers)
 target_link_libraries(bsp PRIVATE apm32f4xx_stdperiph)
 target_link_libraries(bsp PRIVATE CherryRB)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE bsp)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE lvgl)
 
 set(THREADX_ARCH "cortex_m4")        # 根据实际MCU架构调整
 set(THREADX_TOOLCHAIN "gnu")         # 根据实际工具链调整
@@ -68,6 +75,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/User/user_usb_init.c
     ${CMAKE_SOURCE_DIR}/drivers/display/st7789.c
     ${CMAKE_SOURCE_DIR}/drivers/display/lcd_text.c
+    ${CMAKE_SOURCE_DIR}/User/lvgl_port.c
+    ${CMAKE_SOURCE_DIR}/User/lvgl_demo.c
 )
 
 # APM32F407 vector table and ThreadX low-level initialization.

@@ -59,20 +59,42 @@ void NMI_Handler(void)
  * @retval  None
  *
  */
+static void hf_hex32(uint32_t val)
+{
+    static const char hexdig[] = "0123456789ABCDEF";
+    uint8_t buf[11] = { '0', 'x', 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    for (int i = 9; i >= 2; i--)
+    {
+        buf[i] = (uint8_t)hexdig[val & 0xF];
+        val >>= 4;
+    }
+    extern void bsp_debug_uart_write(const uint8_t *data, uint32_t len);
+    bsp_debug_uart_write(buf, 10);
+}
+
 void HardFault_Handler(void)
 {
     uint32_t hfsr = SCB->HFSR;
     uint32_t cfsr = SCB->CFSR;
     uint32_t bfar = SCB->BFAR;
+    volatile uint32_t *stack = (volatile uint32_t *)__get_MSP();
+    extern void bsp_debug_uart_write(const uint8_t *data, uint32_t len);
+    static const uint8_t h1[] = "\r\n[HF] HFSR=";
+    static const uint8_t h2[] = " CFSR=";
+    static const uint8_t h3[] = " BFAR=";
+    static const uint8_t h4[] = " PSR=";
+    static const uint8_t h5[] = " PC=";
+    static const uint8_t h6[] = " LR=";
+    static const uint8_t h7[] = " MSP=";
 
-    /* Check if it is a stacking fault */
-    if(hfsr && cfsr && bfar)
-    while (1)
-    {
-      /* code */
-    }
-    
-    /* Go to infinite loop when Hard Fault exception occurs */
+    bsp_debug_uart_write(h1, sizeof(h1) - 1); hf_hex32(hfsr);
+    bsp_debug_uart_write(h2, sizeof(h2) - 1); hf_hex32(cfsr);
+    bsp_debug_uart_write(h3, sizeof(h3) - 1); hf_hex32(bfar);
+    bsp_debug_uart_write(h4, sizeof(h4) - 1); hf_hex32(stack[7]);
+    bsp_debug_uart_write(h5, sizeof(h5) - 1); hf_hex32(stack[6]);
+    bsp_debug_uart_write(h6, sizeof(h6) - 1); hf_hex32(stack[5]);
+    bsp_debug_uart_write(h7, sizeof(h7) - 1); hf_hex32((uint32_t)stack);
+
     while (1)
     {
     }

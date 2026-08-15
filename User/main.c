@@ -43,6 +43,8 @@
 #include "bsp_w25qxx.h"
 #include "display_port.h"
 #include "lcd_text.h"
+#include "lvgl_port.h"
+#include "lvgl_demo.h"
 
 #define VECT_TAB_OFFSET  0x00
 
@@ -62,6 +64,8 @@
 TX_THREAD               thread_0;
 TX_THREAD               ThreadInit;
 TX_THREAD               thread_lcd_test;
+TX_THREAD               thread_lvgl;
+TX_THREAD               thread_w25q_test;
 TX_THREAD               thread_2;
 TX_THREAD               thread_3;
 TX_THREAD               thread_4;
@@ -76,11 +80,12 @@ TX_BYTE_POOL            byte_pool_0;
 TX_BLOCK_POOL           block_pool_0;
 
 #define DEMO_STACK_SIZE         1024
-#define DEMO_BYTE_POOL_SIZE     12288
+#define DEMO_BYTE_POOL_SIZE     28672
 #define DEMO_BLOCK_POOL_SIZE    100
 #define DEMO_QUEUE_SIZE         100
 
 #define LCD_TEST_STACK_SIZE     1024
+#define LVGL_STACK_SIZE         8192
 
 void thread_0_entry(ULONG thread_input)
 {
@@ -269,6 +274,33 @@ void thread_button_lcd_test_entry(ULONG thread_input)
     }
 }
 
+volatile uint32_t lvgl_heartbeat = 0U;
+
+void thread_lvgl_entry(ULONG thread_input)
+{
+    (void)thread_input;
+
+    while (!lvgl_port_init())
+    {
+        tx_thread_sleep(100U);
+    }
+    printf("[LVGL] port ready\r\n");
+    lvgl_demo_start();
+
+    while (1)
+    {
+        lvgl_port_handler();
+        tx_thread_sleep(5U);
+        lvgl_heartbeat++;
+        if ((lvgl_heartbeat % 400U) == 0U)
+        {
+            printf("[LVGL] alive %lu\r\n", (unsigned long)(lvgl_heartbeat / 200U));
+        }
+    }
+}
+
+void thread_w25q_test_entry(ULONG thread_input);
+
 void thread_lcd_test_entry(ULONG thread_input)
 {
     static const DISPLAY_AREA_T full_screen = {
@@ -317,6 +349,55 @@ void InitThread(ULONG thread_input)
     display_status = display_port_init();
     printf("ST7789 init: %s\r\n",
            (display_status == DISPLAY_PORT_OK) ? "ok" : "failed");
+    {
+        static const DISPLAY_AREA_T full = { 0U, 0U, 239U, 239U };
+        uint32_t t0, t1;
+
+        /* full-screen fill timing */
+        t0 = DWT->CYCCNT;
+        (void)display_port_fill(&full, DISPLAY_COLOR_WHITE);
+        t1 = DWT->CYCCNT;
+        printf("[LCD] fullscreen fill: %lu ms\r\n",
+               (unsigned long)((t1 - t0) / (SystemCoreClock / 1000U)));
+
+        /* raw bus write timing: 1KB x 100 */
+        {
+            static uint8_t raw_buf[1024];
+            #include "bsp_lcd_bus.h"
+            for (uint32_t i = 0U; i < sizeof(raw_buf); ++i)
+            {
+                raw_buf[i] = (uint8_t)i;
+            }
+            t0 = DWT->CYCCNT;
+            for (uint32_t i = 0U; i < 100U; ++i)
+            {
+                (void)bsp_lcd_bus_write(raw_buf, sizeof(raw_buf));
+            }
+            t1 = DWT->CYCCNT;
+            printf("[LCD] 100x 1KB raw write: %lu ms (%lu us each)\r\n",
+                   (unsigned long)((t1 - t0) / (SystemCoreClock / 1000U)),
+                   (unsigned long)((t1 - t0) / (SystemCoreClock / 100000U)));
+        }
+
+        /* block flush timing (e.g. one row of text, 8x16 chars) */
+        {
+            uint16_t pixels[8U * 16U];
+            DISPLAY_AREA_T area = { 0U, 24U, 7U, 39U };
+            for (uint32_t i = 0U; i < 8U * 16U; ++i)
+            {
+                pixels[i] = (uint16_t)((i * 13U) & 0xFFFFU);
+            }
+            t0 = DWT->CYCCNT;
+            for (uint32_t i = 0U; i < 100U; ++i)
+            {
+                (void)display_port_flush(&area, pixels, NULL, NULL);
+            }
+            t1 = DWT->CYCCNT;
+            printf("[LCD] 100x 8x16 block flush: %lu ms (%lu us each)\r\n",
+                   (unsigned long)((t1 - t0) / (SystemCoreClock / 1000U)),
+                   (unsigned long)((t1 - t0) / (SystemCoreClock / 100000U)));
+        }
+    }
 //    void cdc_acm_init(uint8_t busid, uintptr_t reg_base);
 //    cdc_acm_init(0,USB_OTG_FS_BASE);
 //    cdc_acm_init(0,USB_OTG_HS_BASE);
@@ -334,6 +415,8 @@ void tx_application_define(void *first_unused_memory)
     CHAR    *pointer = TX_NULL;
     CHAR    *InitTaskPtr = TX_NULL;
     CHAR    *LcdTestTaskPtr = TX_NULL;
+    CHAR    *LvglTaskPtr = TX_NULL;
+    CHAR    *W25QTaskPtr = TX_NULL;
 
 
     /* Create a byte memory pool from which to allocate the thread stacks.  */
@@ -346,6 +429,8 @@ void tx_application_define(void *first_unused_memory)
     tx_byte_allocate(&byte_pool_0, (VOID **) &pointer, DEMO_STACK_SIZE, TX_NO_WAIT);
     tx_byte_allocate(&byte_pool_0, (VOID **) &InitTaskPtr, 2048, TX_NO_WAIT);
     tx_byte_allocate(&byte_pool_0, (VOID **) &LcdTestTaskPtr, LCD_TEST_STACK_SIZE, TX_NO_WAIT);
+    tx_byte_allocate(&byte_pool_0, (VOID **) &LvglTaskPtr, LVGL_STACK_SIZE, TX_NO_WAIT);
+    tx_byte_allocate(&byte_pool_0, (VOID **) &W25QTaskPtr, 2048, TX_NO_WAIT);
 
     /* Create the main thread.  */
     tx_thread_create(&thread_0, "thread 0", thread_0_entry, 0,
@@ -356,10 +441,18 @@ void tx_application_define(void *first_unused_memory)
             InitTaskPtr, 2048,
             6, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    /* Button framework demo: button state/events on the LCD. */
-    tx_thread_create(&thread_lcd_test, "thread btn lcd", thread_button_lcd_test_entry, 0,
-            LcdTestTaskPtr, LCD_TEST_STACK_SIZE,
-            5, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
+    /* LVGL demo thread (own 8KB stack). */
+    tx_thread_create(&thread_lvgl, "thread lvgl", thread_lvgl_entry, 0,
+            LvglTaskPtr, LVGL_STACK_SIZE,
+            7, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    /* W25Q full test thread (low priority, after boot). */
+    tx_thread_create(&thread_w25q_test, "thread w25q", thread_w25q_test_entry, 0,
+            W25QTaskPtr, 2048,
+            8, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
+
+    (void)thread_lcd_test;
+    (void)thread_button_lcd_test_entry;
 
 }
 
@@ -376,12 +469,153 @@ const char * const g_hello = "Hello, string is Initialized!\r\n";
  *
  * @retval      None
  */
-int main(void)
+/* Full W25Q test runs in a low-priority thread after boot so it no
+ * longer blocks system startup. */
+void thread_w25q_test_entry(ULONG thread_input);
+
+void thread_w25q_test_entry(ULONG thread_input)
 {
     BSP_W25QXX_STATUS_T flash_status;
     uint32_t flash_jedec_id = 0U;
     uint8_t test_pattern[300];
     uint8_t read_back[300];
+    static uint8_t perf_buf[4096];
+    uint32_t t0, elapsed;
+    uint32_t addr;
+    const uint32_t perf_size = 256U * 1024U;
+
+    (void)thread_input;
+
+    tx_thread_sleep(2000U);
+
+    printf("W25Q full test start\r\n");
+    flash_status = bsp_w25qxx_init();
+    if (flash_status != BSP_W25QXX_OK)
+    {
+        printf("W25Q init failed: %d\r\n", (int)flash_status);
+        return;
+    }
+    (void)bsp_w25qxx_read_jedec_id(&flash_jedec_id);
+    printf("W25Q JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
+    if (flash_jedec_id != BSP_W25QXX_JEDEC_ID)
+    {
+        printf("W25Q wrong chip (expected %06lX)\r\n",
+               (unsigned long)BSP_W25QXX_JEDEC_ID);
+        return;
+    }
+    printf("W25Q capacity: %lu bytes\r\n", (unsigned long)BSP_W25QXX_CAPACITY);
+
+    printf("W25Q erase sector 0x000000...\r\n");
+    flash_status = bsp_w25qxx_erase_sector(0x000000U);
+    printf("W25Q erase: %s\r\n",
+           (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
+
+    for (uint32_t i = 0U; i < sizeof(test_pattern); ++i)
+    {
+        test_pattern[i] = (uint8_t)(i * 7U + 1U);
+    }
+    flash_status = bsp_w25qxx_write(0x000000U, test_pattern, sizeof(test_pattern));
+    printf("W25Q write 300B (cross page): %s\r\n",
+           (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
+
+    flash_status = bsp_w25qxx_read(0x000000U, read_back, sizeof(read_back));
+    if ((flash_status == BSP_W25QXX_OK) &&
+        (memcmp(test_pattern, read_back, sizeof(test_pattern)) == 0))
+    {
+        printf("W25Q verify: PASS\r\n");
+    }
+    else
+    {
+        printf("W25Q verify: FAIL (%d)\r\n", (int)flash_status);
+    }
+
+    /* read 256KB throughput */
+    for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+    {
+        perf_buf[i] = (uint8_t)(i & 0xFFU);
+    }
+    t0 = DWT->CYCCNT;
+    for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+    {
+        (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
+    }
+    elapsed = (uint32_t)(DWT->CYCCNT - t0);
+    {
+        const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
+        printf("W25Q read 256KB: %lu ms, %lu KB/s\r\n",
+               (unsigned long)elapsed_ms,
+               (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
+    }
+
+    /* erase + write 256KB throughput */
+    {
+        uint32_t erase_fail = 0U;
+        uint32_t write_fail = 0U;
+        uint32_t t_erase, t_write;
+
+        t0 = DWT->CYCCNT;
+        for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += BSP_W25QXX_SECTOR_SIZE)
+        {
+            if (bsp_w25qxx_erase_sector(addr) != BSP_W25QXX_OK)
+            {
+                erase_fail++;
+            }
+        }
+        t_erase = (uint32_t)(DWT->CYCCNT - t0);
+
+        t0 = DWT->CYCCNT;
+        for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+        {
+            for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+            {
+                perf_buf[i] = (uint8_t)(addr + i);
+            }
+            if (bsp_w25qxx_write(addr, perf_buf, sizeof(perf_buf)) != BSP_W25QXX_OK)
+            {
+                write_fail++;
+            }
+        }
+        t_write = (uint32_t)(DWT->CYCCNT - t0);
+
+        printf("W25Q erase 256KB: %lu ms, write 256KB: %lu ms (erase_fail=%lu write_fail=%lu)\r\n",
+               (unsigned long)(t_erase / (SystemCoreClock / 1000U)),
+               (unsigned long)(t_write / (SystemCoreClock / 1000U)),
+               (unsigned long)erase_fail,
+               (unsigned long)write_fail);
+
+        elapsed = (uint32_t)(DWT->CYCCNT - t0);
+        {
+            const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
+            printf("W25Q erase+write 256KB: %lu ms, %lu KB/s\r\n",
+                   (unsigned long)elapsed_ms,
+                   (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
+        }
+
+        /* read-back verify of the performance region */
+        {
+            uint32_t verify_fail = 0U;
+            for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
+            {
+                (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
+                for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
+                {
+                    if (perf_buf[i] != (uint8_t)(addr + i))
+                    {
+                        verify_fail++;
+                    }
+                }
+            }
+            printf("W25Q perf region verify: %s (bad_bytes=%lu)\r\n",
+                   (verify_fail == 0U) ? "PASS" : "FAIL",
+                   (unsigned long)verify_fail);
+        }
+    }
+    printf("W25Q full test done\r\n");
+}
+
+int main(void)
+{
+    uint32_t flash_jedec_id = 0U;
 
     bsp_sysclk_init();
     bsp_led_init();
@@ -393,134 +627,12 @@ int main(void)
     bsp_debug_uart_write((const uint8_t *)g_hello, strlen(g_hello));
     printf("Hello, world!\r\n");
 
-    /* ---- W25Q128 SPI flash test: read ID, erase, write, verify ---- */
-    flash_status = bsp_w25qxx_init();
-    if (flash_status == BSP_W25QXX_OK)
+    /* Quick W25Q ID check only (full test runs in thread_w25q_test_entry). */
+    if (bsp_w25qxx_init() == BSP_W25QXX_OK)
     {
         (void)bsp_w25qxx_read_jedec_id(&flash_jedec_id);
         printf("W25Q JEDEC ID: %06lX\r\n", (unsigned long)flash_jedec_id);
-        if (flash_jedec_id == BSP_W25QXX_JEDEC_ID)
-        {
-            printf("W25Q capacity: %lu bytes\r\n", (unsigned long)BSP_W25QXX_CAPACITY);
-
-            printf("W25Q erase sector 0x000000...\r\n");
-            flash_status = bsp_w25qxx_erase_sector(0x000000U);
-            printf("W25Q erase: %s\r\n",
-                   (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
-
-            for (uint32_t i = 0U; i < sizeof(test_pattern); ++i)
-            {
-                test_pattern[i] = (uint8_t)(i * 7U + 1U);
-            }
-            flash_status = bsp_w25qxx_write(0x000000U, test_pattern, sizeof(test_pattern));
-            printf("W25Q write 300B (cross page): %s\r\n",
-                   (flash_status == BSP_W25QXX_OK) ? "ok" : "FAIL");
-
-            flash_status = bsp_w25qxx_read(0x000000U, read_back, sizeof(read_back));
-            if ((flash_status == BSP_W25QXX_OK) &&
-                (memcmp(test_pattern, read_back, sizeof(test_pattern)) == 0))
-            {
-                printf("W25Q verify: PASS\r\n");
-            }
-            else
-            {
-                printf("W25Q verify: FAIL (%d)\r\n", (int)flash_status);
-            }
-
-            /* ---- performance test ---- */
-            {
-                static uint8_t perf_buf[4096];
-                uint32_t t0, elapsed;
-                uint32_t addr;
-                uint32_t perf_size = 256U * 1024U;
-
-                /* read 256KB throughput */
-                for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
-                {
-                    perf_buf[i] = (uint8_t)(i & 0xFFU);
-                }
-                printf("[DBG] demcr=%08lx ctrl=%08lx cyccnt=%08lx\r\n",
-                       (unsigned long)CoreDebug->DEMCR,
-                       (unsigned long)DWT->CTRL,
-                       (unsigned long)DWT->CYCCNT);
-                t0 = DWT->CYCCNT;
-                for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
-                {
-                    (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
-                }
-                elapsed = (uint32_t)(DWT->CYCCNT - t0);
-                {
-                    const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
-                    printf("W25Q read 256KB: %lu ms, %lu KB/s\r\n",
-                           (unsigned long)elapsed_ms,
-                           (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms));
-                }
-
-                /* erase + write 256KB throughput */
-                {
-                    uint32_t erase_fail = 0U;
-                    uint32_t write_fail = 0U;
-                    uint32_t t_erase, t_write;
-                    t0 = DWT->CYCCNT;
-                    for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += BSP_W25QXX_SECTOR_SIZE)
-                    {
-                        if (bsp_w25qxx_erase_sector(addr) != BSP_W25QXX_OK)
-                        {
-                            erase_fail++;
-                        }
-                    }
-                    t_erase = (uint32_t)(DWT->CYCCNT - t0);
-                    t0 = DWT->CYCCNT;
-                    for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
-                    {
-                        for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
-                        {
-                            perf_buf[i] = (uint8_t)(addr + i);
-                        }
-                        if (bsp_w25qxx_write(addr, perf_buf, sizeof(perf_buf)) != BSP_W25QXX_OK)
-                        {
-                            write_fail++;
-                        }
-                    }
-                    t_write = (uint32_t)(DWT->CYCCNT - t0);
-                    printf("W25Q write chunk: %u bytes/sector-aligned\r\n", (unsigned)sizeof(perf_buf));
-                    printf("W25Q erase 256KB: %lu ms (%lu ms/sector), write 256KB: %lu ms (%lu us/page)\r\n",
-                           (unsigned long)(t_erase / (SystemCoreClock / 1000U)),
-                           (unsigned long)(t_erase / (SystemCoreClock / 1000U) / (perf_size / BSP_W25QXX_SECTOR_SIZE)),
-                           (unsigned long)(t_write / (SystemCoreClock / 1000U)),
-                           (unsigned long)(t_write / (SystemCoreClock / 1000U) * 1000U / (perf_size / sizeof(perf_buf))));
-                    elapsed = (uint32_t)(DWT->CYCCNT - t0);
-                    {
-                        const uint32_t elapsed_ms = elapsed / (SystemCoreClock / 1000U);
-                        printf("W25Q erase+write 256KB: %lu ms, %lu KB/s (erase_fail=%lu write_fail=%lu)\r\n",
-                               (unsigned long)elapsed_ms,
-                               (unsigned long)((perf_size / 1024U) * 1000U / elapsed_ms),
-                               (unsigned long)erase_fail,
-                               (unsigned long)write_fail);
-                    }
-
-                    /* read-back verify of the performance region */
-                    {
-                        uint32_t verify_fail = 0U;
-                        for (addr = 0x100000U; addr < 0x100000U + perf_size; addr += sizeof(perf_buf))
-                        {
-                            (void)bsp_w25qxx_read(addr, perf_buf, sizeof(perf_buf));
-                            for (uint32_t i = 0U; i < sizeof(perf_buf); ++i)
-                            {
-                                if (perf_buf[i] != (uint8_t)(addr + i))
-                                {
-                                    verify_fail++;
-                                }
-                            }
-                        }
-                        printf("W25Q perf region verify: %s (bad_bytes=%lu)\r\n",
-                               (verify_fail == 0U) ? "PASS" : "FAIL",
-                               (unsigned long)verify_fail);
-                    }
-                }
-            }
-        }
-        else
+        if (flash_jedec_id != BSP_W25QXX_JEDEC_ID)
         {
             printf("W25Q wrong chip (expected %06lX)\r\n",
                    (unsigned long)BSP_W25QXX_JEDEC_ID);
@@ -528,16 +640,7 @@ int main(void)
     }
     else
     {
-        printf("W25Q init failed: %d\r\n", (int)flash_status);
-        /* Re-read the raw ID to see what the bus actually returns. */
-        if (bsp_w25qxx_read_jedec_id(&flash_jedec_id) == BSP_W25QXX_OK)
-        {
-            printf("W25Q raw ID: %06lX\r\n", (unsigned long)flash_jedec_id);
-        }
-        else
-        {
-            printf("W25Q raw ID read failed (bus timeout)\r\n");
-        }
+        printf("W25Q init failed: %d\r\n", (int)bsp_w25qxx_read_jedec_id(&flash_jedec_id));
     }
     tx_kernel_enter();
 

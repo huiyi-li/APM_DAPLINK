@@ -2,6 +2,7 @@
 #include "apm32f4xx_rcm.h"
 #include "apm32f4xx_fmc.h"
 #include "system_apm32f4xx.h"
+#include "core_cm4.h"
 
 /*!
  * @brief     Configures the System clock frequency, HCLK, PCLK2 and PCLK1
@@ -12,6 +13,15 @@
  */
 void bsp_sysclk_init(void)
 {
+    /* Enable FPU (CP10/CP11 full access).
+     * Neither the GCC nor the Keil startup calls SystemInit() on this
+     * board (clock setup is done here instead), and GCC - unlike armclang -
+     * does not enable the FPU automatically, so any float/double op would
+     * raise NOCP. */
+    SCB->CPACR |= ((3UL << 10 * 2) | (3UL << 11 * 2));
+    __DSB();
+    __ISB();
+
     RCM_Reset();
 
     /* Open HSE 24MHz */

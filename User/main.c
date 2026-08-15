@@ -446,10 +446,11 @@ void tx_application_define(void *first_unused_memory)
             LvglTaskPtr, LVGL_STACK_SIZE,
             7, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
 
-    /* W25Q full test thread (low priority, after boot). */
-    tx_thread_create(&thread_w25q_test, "thread w25q", thread_w25q_test_entry, 0,
-            W25QTaskPtr, 2048,
-            8, 4, TX_NO_TIME_SLICE, TX_AUTO_START);
+    /* W25Q full test thread (low priority, after boot).
+     * Disabled while investigating: W25Q shares SPI3 with the LCD, so
+     * concurrent SPI use stalls LVGL rendering (arc hung at 36). */
+    (void)W25QTaskPtr;
+    (void)thread_w25q_test_entry;
 
     (void)thread_lcd_test;
     (void)thread_button_lcd_test_entry;

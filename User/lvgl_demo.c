@@ -21,7 +21,7 @@ static void demo_timer_cb(lv_timer_t *timer)
     lv_label_set_text(s_counter_label, text);
     if (s_arc != NULL)
     {
-        lv_bar_set_value(s_arc, (int32_t)(s_counter % 101U), LV_ANIM_OFF);
+        lv_arc_set_value(s_arc, (int32_t)(s_counter % 101U));
     }
 }
 
@@ -61,10 +61,11 @@ void lvgl_demo_start(void)
     lv_label_set_text(btn_label, "Click me");
     lv_obj_center(btn_label);
 
-    s_arc = lv_bar_create(screen);
-    lv_obj_set_size(s_arc, 180, 20);
-    lv_bar_set_range(s_arc, 0, 100);
-    lv_bar_set_value(s_arc, 0, LV_ANIM_OFF);
+    s_arc = lv_arc_create(screen);
+    lv_obj_set_size(s_arc, 120, 120);
+    lv_arc_set_rotation(s_arc, 270);
+    lv_arc_set_bg_angles(s_arc, 0, 360);
+    lv_arc_set_value(s_arc, 0);
     lv_obj_align(s_arc, LV_ALIGN_BOTTOM_MID, 0, -10);
 
     lv_timer_create(demo_timer_cb, 500, NULL);

@@ -32,7 +32,7 @@ typedef struct
     uint8_t  data[FX_SPI_FLASH_BLOCK_SIZE];
 } FX_SPI_FLASH_CACHE_T;
 
-static FX_SPI_FLASH_CACHE_T s_cache[FX_SPI_FLASH_CACHE_SLOTS];
+static FX_SPI_FLASH_CACHE_T s_cache[FX_SPI_FLASH_CACHE_SLOTS] __attribute__((section(".ccmram")));
 static TX_MUTEX s_mutex;
 static bool     s_mutex_ready;
 

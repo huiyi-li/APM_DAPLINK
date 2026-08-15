@@ -89,6 +89,20 @@ L_loop1:
   cmp r2, r4
   bcc L_loop2
 
+  /* Zero-initialize the .ccmram section (NOLOAD, not covered by .bss) */
+  ldr r2, =_sccmram
+  ldr r4, =_eccmram
+  movs r3, #0
+  b L_loop3
+
+L_loop4:
+  str  r3, [r2]
+  adds r2, r2, #4
+
+L_loop3:
+  cmp r2, r4
+  bcc L_loop4
+
   /* Keil MDK startup for this project intentionally does not call
    * SystemInit(); clock and vector setup are performed by bsp_sysclk_init()
    * from main().  Keep GCC startup behavior identical. */

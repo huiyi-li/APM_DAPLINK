@@ -39,9 +39,9 @@
 #define FX_DEMO_CHUNK_SIZE             (1U * 1024U)
 
 static FX_MEDIA  s_media;
-static UCHAR     s_media_memory[FX_DEMO_MEDIA_MEMORY_SIZE];
+static UCHAR     s_media_memory[FX_DEMO_MEDIA_MEMORY_SIZE] __attribute__((section(".ccmram")));
 static TX_THREAD s_thread;
-static UCHAR     s_thread_stack[FX_DEMO_THREAD_STACK_SIZE];
+static UCHAR     s_thread_stack[FX_DEMO_THREAD_STACK_SIZE] __attribute__((section(".ccmram")));
 
 static void filex_demo_entry(ULONG thread_input);
 

@@ -37,7 +37,7 @@ typedef struct
 static bool s_bus_ready;
 static bool s_initialized;
 volatile uint32_t g_w25qxx_raw_id;
-static uint8_t s_sector_buffer[BSP_W25QXX_SECTOR_SIZE];
+static uint8_t s_sector_buffer[BSP_W25QXX_SECTOR_SIZE] __attribute__((section(".ccmram")));
 static uint8_t s_verify_buffer[BSP_W25QXX_PAGE_SIZE];
 
 static void w25qxx_select(void)

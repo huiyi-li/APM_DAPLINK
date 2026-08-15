@@ -276,14 +276,14 @@ volatile struct cdc_line_coding g_cdc1_lincoding = { 115200U, 0U, 0U, 8U };
 volatile uint8_t config_uart1 = 0;
 volatile uint8_t config_uart1_transfer = 0;
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t uartrx_ringbuffer[CONFIG_UARTRX_RINGBUF_SIZE];
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usbrx_ringbuffer[CONFIG_USBRX_RINGBUF_SIZE];
+USB_MEM_ALIGNX uint8_t uartrx_ringbuffer[CONFIG_UARTRX_RINGBUF_SIZE] __attribute__((section(".ccmram")));
+USB_MEM_ALIGNX uint8_t usbrx_ringbuffer[CONFIG_USBRX_RINGBUF_SIZE] __attribute__((section(".ccmram")));
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_tmpbuffer[DAP_PACKET_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_cdc_in_buffer[DAP_PACKET_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_cdc_out_buffer[DAP_PACKET_SIZE];
 
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t uartrx_ringbuffer1[CONFIG_UARTRX_RINGBUF_SIZE];
-USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usbrx_ringbuffer1[CONFIG_USBRX_RINGBUF_SIZE];
+USB_MEM_ALIGNX uint8_t uartrx_ringbuffer1[CONFIG_UARTRX_RINGBUF_SIZE] __attribute__((section(".ccmram")));
+USB_MEM_ALIGNX uint8_t usbrx_ringbuffer1[CONFIG_USBRX_RINGBUF_SIZE] __attribute__((section(".ccmram")));
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t usb_tmpbuffer1[DAP_PACKET_SIZE];
 USB_NOCACHE_RAM_SECTION USB_MEM_ALIGNX uint8_t cdc1_usb_tx_buffer[DAP_PACKET_SIZE];
 

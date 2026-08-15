@@ -6,6 +6,6 @@
 
 /* Let pending interrupts wake the scheduler before it re-enters its
  * interrupt-protected ready-thread check. */
-#define TX_ENABLE_WFI
+// #define TX_ENABLE_WFI
 
 #endif

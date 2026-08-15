@@ -179,7 +179,7 @@ static const uint8_t config_descriptor[] = {
         /* Endpoint IN 1 */
         USB_ENDPOINT_DESCRIPTOR_INIT(DAP_IN_EP, USB_ENDPOINT_TYPE_BULK, DAP_PACKET_SIZE, 0x00),
         CDC_ACM_DESCRIPTOR_INIT(0x01, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP, DAP_PACKET_SIZE, 0x00),
-        CDC_ACM_DESCRIPTOR_INIT(0x04, CDC1_INT_EP, CDC1_OUT_EP, CDC1_IN_EP, DAP_PACKET_SIZE, 0x00),
+        CDC_ACM_DESCRIPTOR_INIT(0x03, CDC1_INT_EP, CDC1_OUT_EP, CDC1_IN_EP, DAP_PACKET_SIZE, 0x00),
     
 #ifdef CONFIG_DAP_HID
         HID_DESC()
@@ -198,7 +198,7 @@ static const uint8_t other_speed_config_descriptor[] = {
         /* Endpoint IN 1 */
         USB_ENDPOINT_DESCRIPTOR_INIT(DAP_IN_EP, USB_ENDPOINT_TYPE_BULK, DAP_PACKET_SIZE, 0x00),
         CDC_ACM_DESCRIPTOR_INIT(0x01, CDC_INT_EP, CDC_OUT_EP, CDC_IN_EP, DAP_PACKET_SIZE, 0x00),
-        CDC_ACM_DESCRIPTOR_INIT(0x04, CDC1_INT_EP, CDC1_OUT_EP, CDC1_IN_EP, DAP_PACKET_SIZE, 0x00),
+        CDC_ACM_DESCRIPTOR_INIT(0x03, CDC1_INT_EP, CDC1_OUT_EP, CDC1_IN_EP, DAP_PACKET_SIZE, 0x00),
 #ifdef CONFIG_DAP_HID
         HID_DESC()
 #endif
@@ -623,7 +623,7 @@ void usbd_cdc_acm_set_line_coding(uint8_t busid, uint8_t intf, struct cdc_line_c
      * here breaks the bridge after a USB reset: the stored line coding is
      * already the default, so a matching SET_LINE_CODING would be ignored
      * and config_uart_transfer would stay 0. */
-    if (intf == 0x04U) {
+    if (intf == 0x03U) {
         memcpy((uint8_t *) &g_cdc1_lincoding, line_coding, sizeof(struct cdc_line_coding));
         config_uart1 = 1;
         config_uart1_transfer = 0;
@@ -637,7 +637,7 @@ void usbd_cdc_acm_set_line_coding(uint8_t busid, uint8_t intf, struct cdc_line_c
 void usbd_cdc_acm_get_line_coding(uint8_t busid, uint8_t intf, struct cdc_line_coding *line_coding)
 {
     (void) busid;
-    if (intf == 0x04U) {
+    if (intf == 0x03U) {
         memcpy(line_coding, (uint8_t *) &g_cdc1_lincoding, sizeof(struct cdc_line_coding));
     } else {
         memcpy(line_coding, (uint8_t *) &g_cdc_lincoding, sizeof(struct cdc_line_coding));

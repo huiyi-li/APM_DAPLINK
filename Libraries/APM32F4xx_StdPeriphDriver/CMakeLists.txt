@@ -18,6 +18,9 @@ set(EXCLUDED_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/src/apm32f4xx_usb_device.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/apm32f4xx_usb_host.c
         ${CMAKE_CURRENT_SOURCE_DIR}/src/apm32f4xx_usb.c
+        # 该文件 #include "apm32f4Xx_sdio.h" 大小写与文件名不一致,
+        # Windows 文件系统大小写不敏感可编译,Linux 上会报错。本项目未使用 SDIO。
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/apm32f4xx_sdio.c
 )
 
 # 从源文件列表中移除排除的文件

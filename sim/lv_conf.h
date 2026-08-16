@@ -29,6 +29,9 @@
 /** Color depth: 1 (I1), 8 (L8), 16 (RGB565), 24 (RGB888), 32 (XRGB8888) */
 #define LV_COLOR_DEPTH 16
 
+/** Enable SDL backend for the PC simulator */
+#define LV_USE_SDL 1
+
 /*=========================
    STDLIB WRAPPER SETTINGS
  *=========================*/
@@ -69,7 +72,7 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /** Size of memory available for `lv_malloc()` in bytes (>= 2kB) */
-    #define LV_MEM_SIZE (32U * 1024U)          /**< [bytes] */
+    #define LV_MEM_SIZE (512U * 1024U)          /**< [bytes] */
 
     /** Size of the memory expand for `lv_malloc()` in bytes */
     #define LV_MEM_POOL_EXPAND_SIZE 0
@@ -410,7 +413,7 @@
  *-----------*/
 
 /** Enable log module */
-#define LV_USE_LOG 0
+#define LV_USE_LOG 1
 #if LV_USE_LOG
     /** Set value to one of the following levels of logging detail:
      *  - LV_LOG_LEVEL_TRACE    Log detailed information.
@@ -1038,7 +1041,7 @@
 /* Documentation for several of the below items can be found here: https://docs.lvgl.io/master/details/auxiliary-modules/index.html . */
 
 /** 1: Enable API to take snapshot for object */
-#define LV_USE_SNAPSHOT 0
+#define LV_USE_SNAPSHOT 1
 
 /** 1: Enable system monitor component */
 #define LV_USE_SYSMON   0
@@ -1209,7 +1212,7 @@
  *==================*/
 
 /** Use SDL to open window on PC and handle mouse and keyboard. */
-#define LV_USE_SDL              0
+
 #if LV_USE_SDL
     #define LV_SDL_INCLUDE_PATH     <SDL2/SDL.h>
     #define LV_SDL_RENDER_MODE      LV_DISPLAY_RENDER_MODE_DIRECT   /**< LV_DISPLAY_RENDER_MODE_DIRECT is recommended for best performance */

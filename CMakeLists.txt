@@ -45,7 +45,7 @@ set(CONFIG_LV_BUILD_DEMOS OFF CACHE BOOL "" FORCE)
 set(CONFIG_LV_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_SOURCE_DIR}/third/lvgl)
 # LVGL is big; build it optimized even in Debug builds to fit 512KB flash.
-target_compile_options(lvgl PRIVATE -O2)
+target_compile_options(lvgl PRIVATE -Os)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_cmsis_headers)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32_device_headers)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE apm32f4xx_stdperiph)
@@ -66,7 +66,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE threadx)
 set(FX_USER_FILE "${CMAKE_SOURCE_DIR}/User/fx_user.h")
 add_subdirectory(third/filex)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE filex)
-target_compile_options(filex PRIVATE -O2)
+target_compile_options(filex PRIVATE -Os)
 
 # 设置操作系统抽象层
 set(CONFIG_CHERRYUSB_OSAL "threadx")
@@ -85,6 +85,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_SOURCE_DIR}/User/lvgl_demo.c
     ${CMAKE_SOURCE_DIR}/User/fx_spi_flash_driver.c
     ${CMAKE_SOURCE_DIR}/User/filex_demo.c
+    ${CMAKE_SOURCE_DIR}/User/algo_data.c
+    ${CMAKE_SOURCE_DIR}/User/app_boot.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/app_ui.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/app_algo.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_fs_filex.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_flash_dap.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_keys_mcu.c
 )
 
 # APM32F407 vector table and ThreadX low-level initialization.
@@ -105,6 +112,9 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryUSB/class/hid"
     "${CMAKE_CURRENT_SOURCE_DIR}/third/CherryRB"
     "${CMAKE_CURRENT_SOURCE_DIR}/drivers/display"
+    "${CMAKE_CURRENT_SOURCE_DIR}/mcu_port"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/third/DAP/Include"
 )
 
 # 设置链接脚本（项目特定）
@@ -161,3 +171,12 @@ message(STATUS "Target processor: ${ARCHITECTURE}")
 message(STATUS "FPU type: ${FPU_TYPE}")
 message(STATUS "FPU ABI: ${FPU_ABI}")
 message(STATUS "Linker script: ${LINKER_SCRIPT}")
+
+# mcu_port (app UI/algo/backends) - optimize to fit flash
+set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/mcu_port/app_ui.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/app_algo.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_fs_filex.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_flash_dap.c
+    ${CMAKE_SOURCE_DIR}/mcu_port/backends/app_keys_mcu.c
+    PROPERTIES COMPILE_OPTIONS "-O2")

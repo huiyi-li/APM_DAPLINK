@@ -45,6 +45,8 @@
 #include "lcd_text.h"
 #include "lvgl_port.h"
 #include "lvgl_demo.h"
+#include "app_ui.h"
+#include "app_keys.h"
 #include "filex_demo.h"
 #include "fx_spi_flash_driver.h"
 
@@ -96,6 +98,7 @@ TX_BLOCK_POOL           block_pool_0;
 void thread_0_entry(ULONG thread_input)
 {
     (void)thread_input;
+
     while(1)
     {
         const ULONG now = tx_time_get();
@@ -291,7 +294,10 @@ void thread_lvgl_entry(ULONG thread_input)
         tx_thread_sleep(100U);
     }
     printf("[LVGL] port ready\r\n");
-    lvgl_demo_start();
+    app_keys_init();
+    app_ui_init();
+    /* lvgl_demo_start(); -- replaced by the app UI */
+
 
     while (1)
     {

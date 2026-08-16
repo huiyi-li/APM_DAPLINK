@@ -7,6 +7,10 @@
 
 #include "fx_api.h"
 #include "fx_spi_flash_driver.h"
+
+extern const uint8_t  algo_gd32f470_bin[];
+extern const uint32_t algo_gd32f470_bin_len;
+extern const char     algo_gd32f470_cfg[];
 #include "tx_api.h"
 
 /*
@@ -41,10 +45,26 @@
 static FX_MEDIA  s_media;
 static UCHAR     s_media_memory[FX_DEMO_MEDIA_MEMORY_SIZE] __attribute__((section(".ccmram")));
 static TX_THREAD s_thread;
+
+FX_MEDIA *filex_demo_get_media(void)
+{
+    return &s_media;
+}
+
+volatile int g_prov_algo_bin = -1;
+volatile int g_prov_algo_cfg = -1;
+volatile int g_prov_create_bin = -1;
+volatile int g_prov_create_cfg = -1;
+volatile int g_prov_open_bin = -1;
+volatile int g_prov_open_cfg = -1;
+volatile int g_demo_open_status = -1;
+volatile int g_list_st = -99;
+volatile int g_list_count = -1;
+volatile char g_list_first[32];
 static UCHAR     s_thread_stack[FX_DEMO_THREAD_STACK_SIZE] __attribute__((section(".ccmram")));
 
 static void filex_demo_entry(ULONG thread_input);
-
+volatile int s_format_status = -1;
 static UINT filex_demo_format(void)
 {
     return fx_media_format(&s_media, fx_spi_flash_driver, NULL,
@@ -69,6 +89,12 @@ static UINT filex_demo_open_media(void)
 {
     UINT status;
 
+    /* TEMP force format */
+    status = filex_demo_format();
+    if (status != FX_SUCCESS)
+    {
+        return status;
+    }
     status = fx_media_open(&s_media, FX_SPI_FLASH_MEDIA_NAME,
                            fx_spi_flash_driver, NULL,
                            s_media_memory, sizeof(s_media_memory));
@@ -205,6 +231,58 @@ static void filex_demo_report(void)
     (void)status;
 }
 
+static void filex_demo_provision_algo(FX_MEDIA *media)
+{
+    FX_FILE file;
+
+    g_prov_algo_bin = -1;
+    g_prov_algo_cfg = -1;
+
+    /* algo code */
+    if (fx_file_open(media, &file, "GD32F470_algo.bin", FX_OPEN_FOR_READ)
+        != FX_SUCCESS)
+    {
+        (void)fx_file_delete(media, "GD32F470_algo.bin");
+        g_prov_create_bin = (int)fx_file_create(media, "GD32F470_algo.bin");
+        g_prov_open_bin = (int)fx_file_open(media, &file, "GD32F470_algo.bin",
+                                            FX_OPEN_FOR_WRITE);
+        if (g_prov_open_bin == FX_SUCCESS)
+        {
+            (void)fx_file_write(&file, (void *)algo_gd32f470_bin,
+                                algo_gd32f470_bin_len);
+            (void)fx_file_close(&file);
+            g_prov_algo_bin = 1;
+        }
+    }
+    else
+    {
+        (void)fx_file_close(&file);
+        g_prov_algo_bin = 2;
+    }
+
+    /* cfg */
+    if (fx_file_open(media, &file, "GD32F470.cfg", FX_OPEN_FOR_READ)
+        != FX_SUCCESS)
+    {
+        (void)fx_file_delete(media, "GD32F470.cfg");
+        g_prov_create_cfg = (int)fx_file_create(media, "GD32F470.cfg");
+        g_prov_open_cfg = (int)fx_file_open(media, &file, "GD32F470.cfg",
+                                            FX_OPEN_FOR_WRITE);
+        if (g_prov_open_cfg == FX_SUCCESS)
+        {
+            (void)fx_file_write(&file, (void *)algo_gd32f470_cfg,
+                                (ULONG)strlen(algo_gd32f470_cfg));
+            (void)fx_file_close(&file);
+            g_prov_algo_cfg = 1;
+        }
+    }
+    else
+    {
+        (void)fx_file_close(&file);
+        g_prov_algo_cfg = 2;
+    }
+}
+
 static void filex_demo_entry(ULONG thread_input)
 {
     UINT status;
@@ -219,9 +297,37 @@ static void filex_demo_entry(ULONG thread_input)
     fx_system_initialize();
 
     status = filex_demo_open_media();
+    g_demo_open_status = (int)status;
     if (status == FX_SUCCESS)
     {
+        /* provision the GD32F470 algorithm files into the volume root */
+        filex_demo_provision_algo(&s_media);
         (void)filex_demo_write_and_verify();
+        {
+            UINT attr2;
+            ULONG sz2;
+            UINT y2, m2, d2, h2, mi2, s2;
+            int cnt = 0;
+            UINT st2 = fx_directory_first_full_entry_find(&s_media, "\\",
+                                                          &attr2, &sz2,
+                                                          &y2, &m2, &d2,
+                                                          &h2, &mi2, &s2);
+            g_list_st = (int)st2;
+            if (st2 == FX_SUCCESS)
+            {
+                snprintf((char *)g_list_first, sizeof(g_list_first), "%s",
+                         s_media.fx_media_name_buffer);
+            }
+            while (st2 == FX_SUCCESS)
+            {
+                cnt++;
+                st2 = fx_directory_next_full_entry_find(&s_media, "\\",
+                                                        &attr2, &sz2, &y2,
+                                                        &m2, &d2, &h2, &mi2,
+                                                        &s2);
+            }
+            g_list_count = cnt;
+        }
         filex_demo_list_directory();
         filex_demo_report();
         (void)fx_media_close(&s_media);

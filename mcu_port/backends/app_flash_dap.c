@@ -271,6 +271,10 @@ static bool mem_write_buf(uint32_t addr, const uint8_t *buf, uint32_t size)
                          ((uint32_t)buf[i + 2] << 16) | ((uint32_t)buf[i + 3] << 24);
             if (!swd_write_ap(AP_DRW, v)) return false;
             i += 4U;
+            if ((i & 0x3FU) == 0U)
+            {
+                tx_thread_sleep(1);   /* yield so the UI can run */
+            }
         }
     }
     while (i < size)
@@ -326,11 +330,12 @@ static bool core_write_reg(uint32_t reg, uint32_t val)
     if (!mem_write32(DCRDR, val)) return false;
     if (!mem_write32(DCRSR, reg | DCRSR_REGWnR)) return false;
 
-    /* wait for S_REGRDY (write transfer done) */
+    /* wait for S_REGRDY (write transfer done); yield so the UI can run */
     for (i = 0; i < 1000; i++)
     {
         if (!mem_read32(DHCSR, &dhcsr)) return false;
         if (dhcsr & DHCSR_S_REGRDY) return true;
+        tx_thread_sleep(1);
     }
     return false;
 }
@@ -342,11 +347,12 @@ static bool core_read_reg(uint32_t reg, uint32_t *val)
 
     if (!mem_write32(DCRSR, reg)) return false;
 
-    /* wait for S_REGRDY (read data available) */
+    /* wait for S_REGRDY (read data available); yield so the UI can run */
     for (i = 0; i < 1000; i++)
     {
         if (!mem_read32(DHCSR, &dhcsr)) return false;
         if (dhcsr & DHCSR_S_REGRDY) break;
+        tx_thread_sleep(1);
     }
     if (i == 1000) return false;
 
@@ -459,7 +465,7 @@ static bool swd_init_debug(void)
     }
 
     /* 1. SWJ line reset: >= 50 clock cycles of 1 */
-    memset(seq, 0xFF, sizeof(seq));
+    memset(seq, 0xFF, sizeof(seq));   /* GPIOB MODE */   /* GPIOC MODE */
     if (!swj_sequence(51, seq)) { return false; }
 
     /* 2. idle cycles, then read DPIDR (one line reset only, like
@@ -474,7 +480,7 @@ static bool swd_init_debug(void)
         rq[2] = 1;
         rq[3] = (uint8_t)(SWD_RNW | SWD_REG_ADR(0x00));
         rq[4] = 0; rq[5] = 0; rq[6] = 0; rq[7] = 0;
-        (void)DAP_ProcessCommand(rq, rp);
+        (void)DAP_ProcessCommand(rq, rp);   /* probe: DPIDR ack */
         if (rp[2] == DAP_TRANSFER_OK)
         {
             dpidr = (uint32_t)rp[3] | ((uint32_t)rp[4] << 8) |
@@ -484,18 +490,6 @@ static bool swd_init_debug(void)
     }
     if (i == 3)
     {
-        /* probe: compare with DAP_ProcessCommand path */
-        uint8_t rq[8], rp[16];
-        uint32_t via_dap;
-
-        rq[0] = ID_DAP_Transfer;
-        rq[1] = 0;
-        rq[2] = 1;
-        rq[3] = (uint8_t)(SWD_RNW | SWD_REG_ADR(0x00));
-        rq[4] = 0; rq[5] = 0; rq[6] = 0; rq[7] = 0;
-        (void)DAP_ProcessCommand(rq, rp);
-        via_dap = (uint32_t)rp[3] | ((uint32_t)rp[4] << 8) |
-                  ((uint32_t)rp[5] << 16) | ((uint32_t)rp[6] << 24);   /* GPIOC MODE */
         return false;
     }
 
@@ -509,7 +503,7 @@ static bool swd_init_debug(void)
     if (!swd_write_dp(DP_CTRL_STAT, CSYSPWRUPREQ | CDBGPWRUPREQ)) { return false; }
     for (i = 0; i < 100; i++)
     {
-        if (!swd_read_dp(DP_CTRL_STAT, &tmp)) return false;
+        if (!swd_read_dp(DP_CTRL_STAT, &tmp)) { return false; }
         if ((tmp & (CDBGPWRUPACK | CSYSPWRUPACK)) ==
             (CDBGPWRUPACK | CSYSPWRUPACK))
         {
@@ -607,6 +601,7 @@ static void fl_fail(const char *why)
 {
     snprintf(fl_reason, sizeof(fl_reason), "%s", why);
     fl_state = APP_FLASH_FAIL;
+    fl_active = 0;   /* failure paths must not leave the busy flag set */
 }
 
 /* Resume the USB DAP handler thread that fl_engine suspends. Must be
@@ -660,7 +655,6 @@ static void fl_engine(ULONG arg)
         return;
     }
     FL_DBG("target halted at reset vector");
-
     /* 2. download the builtin algorithm into target RAM */
     if (!mem_write_buf(fl_algo.ram_addr, algo_gd32f470_bin,
                        fl_algo.algo_size))
@@ -779,6 +773,7 @@ static void fl_engine(ULONG arg)
         {
             FL_DBG("programmed %lu bytes", (unsigned long)fl_done);
         }
+        tx_thread_sleep(1);   /* yield so the UI can update progress */
     }
 
     /* 6. UnInit(last fnc = PROGRAM) */
@@ -825,11 +820,9 @@ static void fl_engine(ULONG arg)
     FL_DBG("flash %s", (fl_state == APP_FLASH_OK) ? "OK" : "FAIL");
     fl_active = 0;
 
-    /* resume the USB DAP handler thread */
-    {
-        extern TX_THREAD ThreadInit;
-        (void)tx_thread_resume(&ThreadInit);
-    }
+    /* resume the USB DAP handler thread and let the UI refresh again
+     */
+    fl_resume_dap();
 }
 
 int app_flash_start(const char *path)
@@ -837,7 +830,6 @@ int app_flash_start(const char *path)
     TX_THREAD *prev = tx_thread_identify();
 
     (void)path;
-
     if (fl_active)
     {
         return -1;

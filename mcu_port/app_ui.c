@@ -858,6 +858,7 @@ static void flash_list_cb(lv_event_t *e)
 }
 
 static void flash_start_view(const char *path);
+static void flash_kick_cb(lv_timer_t *t);
 static void flash_result_back_cb(lv_event_t *e);
 static void flash_result_key_cb(lv_event_t *e);
 
@@ -1123,7 +1124,18 @@ static void flash_start_view(const char *path)
     lv_group_add_obj(g_flash, abort);
     lv_group_focus_obj(abort);
 
-    app_flash_start(path);
+    /* Let LVGL render the running screen first, then kick the flashing
+     * from a one-shot timer. Starting right after a synchronous refresh
+     * disturbed the SWD line, and starting immediately starves the UI
+     * render (the flash thread preempts LVGL). */
+    lv_timer_t *kick = lv_timer_create(flash_kick_cb, 30, NULL);
+    lv_timer_set_repeat_count(kick, 1);
+}
+
+static void flash_kick_cb(lv_timer_t *t)
+{
+    (void)t;
+    app_flash_start(fl_bin_path);
     fl_poll_timer = lv_timer_create(flash_poll_cb, 100, NULL);
 }
 

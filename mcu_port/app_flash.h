@@ -28,4 +28,9 @@ void app_flash_request_cancel(void);
 /* Human readable failure reason (valid after APP_FLASH_FAIL). */
 const char *app_flash_last_reason(void);
 
+/* SWD clock for offline flashing, in Hz. 0 selects the fast clock
+ * (no delay loop). Persisted in /settings.txt as flash_clock=... */
+uint32_t app_flash_get_clock(void);
+int app_flash_set_clock(uint32_t hz);
+
 #endif

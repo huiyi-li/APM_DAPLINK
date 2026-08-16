@@ -45,6 +45,7 @@ typedef enum {
     SCR_DAP,
     SCR_FM,
     SCR_FLASH,
+    SCR_CLK,
 } scr_t;
 
 static lv_obj_t *scr_boot, *scr_menu, *scr_dap, *scr_fm, *scr_flash;
@@ -73,7 +74,7 @@ static scr_t pop_screen(void)
 
 static void menu_focus_first(void)
 {
-    for(int i = 1; i < 4; i++) {
+    for(int i = 1; i < 5; i++) {
         lv_obj_t *b = lv_obj_get_child(scr_menu, i);
         if(b && lv_obj_has_flag(b, LV_OBJ_FLAG_CLICKABLE)) {
             lv_group_focus_obj(b);
@@ -422,6 +423,9 @@ static void dap_enter(void);
 static lv_obj_t *fm_first_row(void);
 static lv_obj_t *flash_first_row(void);
 
+static void clk_refresh(void);
+static void clk_opt_cb(lv_event_t *e);
+
 static void menu_item_cb(lv_event_t *e)
 {
     scr_t target = (scr_t)(lv_event_get_user_data(e));
@@ -436,7 +440,116 @@ static void menu_item_cb(lv_event_t *e)
         flash_refresh_list();
         push_screen(SCR_FLASH);
         ui_enter_screen(scr_flash, g_flash, flash_first_row());
+    } else if(target == SCR_CLK) {
+        push_screen(SCR_CLK);
+        clk_refresh();
     }
+}
+
+/*-------------------------- flash clock setting ----------------------*/
+
+static lv_obj_t *scr_clk;
+static lv_group_t *g_clk;
+static lv_obj_t *clk_body;
+static lv_obj_t *clk_buttons[4];
+static int clk_btn_count;
+
+static const uint32_t clk_options[] = {
+    1000000U,      /* 1 MHz */
+    10000000U,     /* 10 MHz */
+    20000000U,     /* 20 MHz */
+    50000000U,     /* fast (no delay loop) */
+};
+
+static void clk_show(void)
+{
+    lv_obj_clean(clk_body);
+
+    char line[48];
+    uint32_t cur = app_flash_get_clock();
+    snprintf(line, sizeof(line), "CURRENT: %lu Hz", (unsigned long)cur);
+    lv_obj_t *lbl = lv_label_create(clk_body);
+    lv_label_set_text(lbl, line);
+    lv_obj_set_style_text_color(lbl, lv_color_hex(0x4fc3f7), 0);
+    lv_obj_set_style_text_font(lbl, &lv_font_montserrat_16, 0);
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 8);
+
+    clk_btn_count = 0;
+    for(unsigned i = 0; i < sizeof(clk_options)/sizeof(clk_options[0]); i++) {
+        lv_obj_t *b = lv_button_create(clk_body);
+        if(clk_btn_count < 4) clk_buttons[clk_btn_count] = b;
+        clk_btn_count++;
+        lv_obj_set_size(b, SCR_W - 40, 36);
+        lv_obj_align(b, LV_ALIGN_TOP_MID, 0, 44 + i * 42);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x232329), 0);
+        lv_obj_set_style_bg_color(b, lv_color_hex(0x34344a), LV_STATE_FOCUSED);
+        lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(b, 0, 0);
+        lv_obj_set_style_shadow_width(b, 0, 0);
+        lv_obj_set_style_radius(b, 8, 0);
+        lv_obj_set_style_outline_width(b, 0, LV_STATE_FOCUS_KEY);
+        lv_obj_set_style_outline_opa(b, LV_OPA_TRANSP, LV_STATE_FOCUS_KEY);
+
+        lv_obj_t *l = lv_label_create(b);
+        if(clk_options[i] == 50000000U) {
+            lv_label_set_text(l, "FAST (no delay)");
+        } else {
+            snprintf(line, sizeof(line), "%lu MHz", (unsigned long)(clk_options[i] / 1000000U));
+            lv_label_set_text(l, line);
+        }
+        lv_obj_set_style_text_color(l, lv_color_hex(0xe8e8e8), 0);
+        lv_obj_set_style_text_font(l, &lv_font_montserrat_16, 0);
+        lv_obj_center(l);
+
+        if(cur == clk_options[i]) {
+            lv_obj_set_style_bg_color(b, lv_color_hex(0x2f8f4e), 0);
+        }
+        lv_obj_add_event_cb(b, clk_opt_cb, LV_EVENT_CLICKED,
+                            (void *)(uintptr_t)clk_options[i]);
+        lv_group_add_obj(g_clk, b);
+    }
+}
+
+static void clk_opt_cb(lv_event_t *e)
+{
+    uint32_t hz = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
+    app_flash_set_clock(hz);
+    clk_show();
+}
+
+static void clk_back_cb(lv_event_t *e)
+{
+    (void)e;
+    back_to_menu();
+}
+
+static void clk_key_cb(lv_event_t *e)
+{
+    if(lv_event_get_key(e) != LV_KEY_ESC) return;
+    lv_event_stop_bubbling(e);
+    back_to_menu();
+}
+
+static void clk_refresh(void)
+{
+    clk_show();   /* build the buttons first so focus has a target */
+    ui_enter_screen(scr_clk, g_clk, clk_buttons[0]);
+}
+
+static void create_clk_screen(void)
+{
+    g_clk = lv_group_create();
+    scr_clk = lv_obj_create(NULL);
+    lv_obj_set_size(scr_clk, SCR_W, SCR_H);
+    lv_obj_set_style_bg_color(scr_clk, lv_color_hex(0x141418), 0);
+    lv_obj_set_style_bg_opa(scr_clk, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(scr_clk, 0, 0);
+
+    make_header(scr_clk, "FLASH CLOCK");
+    clk_body = make_body(scr_clk);
+    make_footer(scr_clk, "OK SELECT  HOLD-OK: BACK");
+    lv_obj_add_event_cb(scr_clk, clk_key_cb, LV_EVENT_KEY, NULL);
+    lv_obj_add_event_cb(scr_clk, clk_back_cb, LV_EVENT_CLICKED, NULL);
 }
 
 static void create_menu_screen(void)
@@ -454,13 +567,14 @@ static void create_menu_screen(void)
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 14);
 
     g_menu = lv_group_create();
-    const char *items[3] = { "DAPLink Mode", "Offline Programmer", "File Manager" };
-    scr_t targets[3] = { SCR_DAP, SCR_FLASH, SCR_FM };
+    const char *items[4] = { "DAPLink Mode", "Offline Programmer", "File Manager",
+                             "Flash Clock" };
+    scr_t targets[4] = { SCR_DAP, SCR_FLASH, SCR_FM, SCR_CLK };
 
-    for(int i = 0; i < 3; i++) {
+    for(int i = 0; i < 4; i++) {
         lv_obj_t *btn = lv_button_create(scr_menu);
-        lv_obj_set_size(btn, SCR_W - 40, 44);
-        lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 58 + i * 52);
+        lv_obj_set_size(btn, SCR_W - 40, 36);
+        lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, 52 + i * 40);
         lv_obj_set_style_bg_color(btn, lv_color_hex(0x232329), 0);
         lv_obj_set_style_bg_color(btn, lv_color_hex(0x34344a), LV_STATE_FOCUSED);
         lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
@@ -1509,6 +1623,7 @@ void app_ui_init(void)
     create_fm_screen();
     create_flash_screen();
     create_algo_screen();
+    create_clk_screen();
 
     lv_screen_load(scr_boot);
 }

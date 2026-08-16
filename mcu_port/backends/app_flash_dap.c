@@ -144,6 +144,38 @@ int app_flash_poll(uint32_t *done, uint32_t *total)
     return fl_state;
 }
 
+/* SWD clock setting, persisted in /settings.txt as flash_clock=<hz>.
+ * 0 means fast clock (no delay loop). Default 1 MHz. */
+#define FLASH_CLOCK_DEFAULT  1000000U
+#define FLASH_CLOCK_FAST     50000000U   /* >= 42MHz selects fast mode */
+
+uint32_t app_flash_get_clock(void)
+{
+    char buf[64];
+    int n = app_fs_read("/settings.txt", buf, sizeof(buf));
+    if (n <= 0) return FLASH_CLOCK_DEFAULT;
+
+    /* scan for flash_clock=value */
+    char *p = buf;
+    while (p && p < buf + n)
+    {
+        if (strncmp(p, "flash_clock=", 12) == 0)
+        {
+            return (uint32_t)strtoul(p + 12, NULL, 0);
+        }
+        p = strchr(p, '\n');
+        if (p) p++;
+    }
+    return FLASH_CLOCK_DEFAULT;
+}
+
+int app_flash_set_clock(uint32_t hz)
+{
+    char buf[64];
+    int len = snprintf(buf, sizeof(buf), "flash_clock=%lu\n", (unsigned long)hz);
+    return app_fs_write("/settings.txt", buf, (uint32_t)len);
+}
+
 /* ------------------------- SWD primitives ------------------------- */
 /* Raw SWD layer: drives SW_DP.c's SWD_Transfer/SWJ_Sequence directly
  * (the same primitives DAPLink swd_host.c uses), bypassing the
@@ -457,10 +489,13 @@ static bool swd_init_debug(void)
         (void)DAP_ProcessCommand(rq, rp);
 
         rq[0] = ID_DAP_SWJ_Clock;
-        rq[1] = 0x40;   /* 1000000 = 0x000F4240, little-endian */
-        rq[2] = 0x42;
-        rq[3] = 0x0F;
-        rq[4] = 0x00;
+        {
+            uint32_t clk = app_flash_get_clock();
+            rq[1] = (uint8_t)(clk & 0xFFU);
+            rq[2] = (uint8_t)((clk >> 8) & 0xFFU);
+            rq[3] = (uint8_t)((clk >> 16) & 0xFFU);
+            rq[4] = (uint8_t)((clk >> 24) & 0xFFU);
+        }
         (void)DAP_ProcessCommand(rq, rp);
     }
 
